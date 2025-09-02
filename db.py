@@ -219,3 +219,46 @@ async def get_key_holders():
         """) as cur:
             rows = await cur.fetchall()
             return [r[0] for r in rows]
+
+# --- Перки (без изменения схемы) ---
+async def grant_perk(user_id: int, perk_code: str):
+    """Выдать перк пользователю (запись события в history)."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "INSERT INTO history (user_id, action, amount, reason) VALUES (?, 'perk_grant', NULL, ?)",
+            (user_id, perk_code),
+        )
+        await db.commit()
+
+async def revoke_perk(user_id: int, perk_code: str):
+    """Снять перк у пользователя (запись события в history)."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "INSERT INTO history (user_id, action, amount, reason) VALUES (?, 'perk_revoke', NULL, ?)",
+            (user_id, perk_code),
+        )
+        await db.commit()
+
+async def get_perks(user_id: int):
+    """
+    Текущие перки пользователя как множество кодов.
+    Считается по истории: grant -> добавить, revoke -> убрать.
+    """
+    perks = set()
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("""
+            SELECT action, reason
+            FROM history
+            WHERE user_id = ? AND action IN ('perk_grant','perk_revoke')
+            ORDER BY id ASC
+        """, (user_id,)) as cur:
+            rows = await cur.fetchall()
+    for action, code in rows:
+        if not code:
+            continue
+        code = code.strip().lower()
+        if action == "perk_grant":
+            perks.add(code)
+        elif action == "perk_revoke":
+            perks.discard(code)
+    return perks

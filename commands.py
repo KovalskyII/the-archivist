@@ -10,14 +10,42 @@ from db import (
     grant_key, revoke_key, has_key, get_last_history,
     get_top_users, get_all_roles, reset_user_balance,
     reset_all_balances, set_role_image, get_role_with_image,
-    get_key_holders
+    get_key_holders, grant_perk, revoke_perk, get_perks
 )
 
 KURATOR_ID = 164059195
 DB_PATH = "/data/bot_data.sqlite"
 
+# Код перка -> (эмоджи, человекочитаемое название)
+PERK_REGISTRY = {
+    "иммунитет": ("🛡️", "Иммунитет к бану"),
+    # дальше можно добавлять новые:
+    # "розыск": ("🚨", "Неприкосновенность при розыске"),
+    # "флирт": ("💋", "Привилегия флирта"),
+}
+
+
 def mention_html(user_id: int, fallback: str = "Участник") -> str:
     return f"<a href='tg://user?id={user_id}'>{fallback}</a>"
+
+def render_perks(perk_codes: set[str]) -> str:
+    if not perk_codes:
+        return "У Вас пока нет перков."
+    lines = ["Ваши перки:"]
+    # детерминированный порядок: по названию
+    items = []
+    for code in perk_codes:
+        meta = PERK_REGISTRY.get(code)
+        if meta:
+            emoji, title = meta
+            items.append((title.lower(), f"{emoji} {title}"))
+        else:
+            # неизвестные коды тоже покажем технически
+            items.append((code, f"• {code}"))
+    for _, line in sorted(items):
+        lines.append(line)
+    return "\n".join(lines)
+
 
 async def handle_message(message: types.Message):
     if not message.text:
@@ -118,6 +146,16 @@ async def handle_message(message: types.Message):
         await handle_kubik(message)
         return
 
+    if text == "мои перки":
+        await handle_my_perks(message)
+        return
+
+    # (опционально) посмотреть перки другого участника по reply
+    if text == "перки" and message.reply_to_message:
+        await handle_perks_of(message)
+        return
+
+
     # --- Проверка ключа ---
     user_has_key = (author_id == KURATOR_ID) or await has_key(author_id)
 
@@ -157,6 +195,14 @@ async def handle_message(message: types.Message):
         if text.startswith("обнулить баланс"):
             await handle_obnulit_balans(message)
             return
+        # выдача/снятие конкретного перка (пример — "иммунитет") в ответ на сообщение участника
+        if text == "даровать иммунитет" and message.reply_to_message:
+            await handle_grant_immunity(message)
+            return
+        if text == "снять иммунитет" and message.reply_to_message:
+            await handle_revoke_immunity(message)
+            return
+
 
 
 async def handle_photo_command(message: types.Message):
@@ -453,3 +499,41 @@ async def handle_kubik(message: types.Message):
         )
 
 
+
+
+async def handle_my_perks(message: types.Message):
+    perk_codes = await get_perks(message.from_user.id)
+    await message.reply(render_perks(perk_codes))
+
+async def handle_perks_of(message: types.Message):
+    # по reply — перки другого участника
+    target = message.reply_to_message.from_user
+    perk_codes = await get_perks(target.id)
+    if not perk_codes:
+        await message.reply(f"У {target.full_name} пока нет перков.")
+        return
+    # покажем с именем
+    lines = [f"Перки {mention_html(target.id, target.full_name)}:"]
+    # используем тот же сортировщик
+    items = []
+    for code in perk_codes:
+        meta = PERK_REGISTRY.get(code)
+        if meta:
+            emoji, title = meta
+            items.append((title.lower(), f"{emoji} {title}"))
+        else:
+            items.append((code, f"• {code}"))
+    for _, line in sorted(items):
+        lines.append(line)
+    await message.reply("\n".join(lines), parse_mode="HTML")
+
+# --- Кураторские: иммунитет ---
+async def handle_grant_immunity(message: types.Message):
+    target = message.reply_to_message.from_user
+    await grant_perk(target.id, "иммунитет")
+    await message.reply(f"Иммунитет дарован @{target.username or target.full_name}")
+
+async def handle_revoke_immunity(message: types.Message):
+    target = message.reply_to_message.from_user
+    await revoke_perk(target.id, "иммунитет")
+    await message.reply(f"Иммунитет снят у @{target.username or target.full_name}")
