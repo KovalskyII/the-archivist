@@ -10,7 +10,8 @@ from db import (
     grant_key, revoke_key, has_key, get_last_history,
     get_top_users, get_all_roles, reset_user_balance,
     reset_all_balances, set_role_image, get_role_with_image,
-    get_key_holders, grant_perk, revoke_perk, get_perks
+    get_key_holders, grant_perk, revoke_perk, get_perks,
+    get_seconds_since_last_salary_claim, record_salary_claim
 )
 
 KURATOR_ID = 164059195
@@ -19,6 +20,7 @@ DB_PATH = "/data/bot_data.sqlite"
 # Код перка -> (эмоджи, человекочитаемое название)
 PERK_REGISTRY = {
     "иммунитет": ("🛡️", "Иммунитет к бану"),
+    "зп": ("💵", "Зарплата (5 нуаров в сутки)"),
     # дальше можно добавлять новые:
     # "розыск": ("🚨", "Неприкосновенность при розыске"),
     # "флирт": ("💋", "Привилегия флирта"),
@@ -155,6 +157,11 @@ async def handle_message(message: types.Message):
         await handle_perks_of(message)
         return
 
+    if text == "получить зп":
+        await handle_salary_claim(message)
+        return
+
+
 
     # --- Проверка ключа ---
     user_has_key = (author_id == KURATOR_ID) or await has_key(author_id)
@@ -202,7 +209,12 @@ async def handle_message(message: types.Message):
         if text == "снять иммунитет" and message.reply_to_message:
             await handle_revoke_immunity(message)
             return
-
+        if text == "даровать зп":
+            await handle_grant_salary_perk(message)
+            return
+        if text == "снять зп":
+            await handle_revoke_salary_perk(message)
+            return
 
 
 async def handle_photo_command(message: types.Message):
@@ -527,7 +539,6 @@ async def handle_perks_of(message: types.Message):
         lines.append(line)
     await message.reply("\n".join(lines), parse_mode="HTML")
 
-# --- Кураторские: иммунитет ---
 async def handle_grant_immunity(message: types.Message):
     target = message.reply_to_message.from_user
     await grant_perk(target.id, "иммунитет")
@@ -537,3 +548,77 @@ async def handle_revoke_immunity(message: types.Message):
     target = message.reply_to_message.from_user
     await revoke_perk(target.id, "иммунитет")
     await message.reply(f"Иммунитет снят у @{target.username or target.full_name}")
+
+async def handle_salary_claim(message: types.Message):
+    user_id = message.from_user.id
+    # проверяем, есть ли у пользователя перк "зп"
+    try:
+        perks = await get_perks(user_id)
+    except NameError:
+        # если get_perks еще не подключали, можно трактовать как отсутствие перка
+        perks = set()
+
+    if "зп" not in perks:
+        await message.reply("У Вас нет такой привилегии.")
+        return
+
+    # кулдаун 24 часа
+    seconds = await get_seconds_since_last_salary_claim(user_id, "зп")
+    COOLDOWN = 24 * 60 * 60
+    if seconds is not None and seconds < COOLDOWN:
+        remain = COOLDOWN - seconds
+        hours = remain // 3600
+        minutes = (remain % 3600) // 60
+        await message.reply(f"Зарплата уже получена. Повторно — через {hours}ч {minutes}м.")
+        return
+
+    AMOUNT = 5
+    # сначала фиксируем в истории отдельным событием зарплаты
+    await record_salary_claim(user_id, AMOUNT, "зп")
+    # затем начисляем на баланс (reason оставим кратким)
+    await change_balance(user_id, AMOUNT, "зп", user_id)
+
+    await message.reply(f"💵 Начислено {AMOUNT} нуаров по перку «Зарплата».")
+
+
+async def handle_grant_salary_perk(message: types.Message):
+    target = message.reply_to_message.from_user
+    # защитимся от выдачи ботам (по желанию)
+    if getattr(target, "is_bot", False):
+        await message.reply("Этот перк не выдается ботам.")
+        return
+
+    # если уже выдан — сообщим
+    try:
+        current = await get_perks(target.id)
+    except NameError:
+        current = set()
+
+    if "зп" in current:
+        await message.reply(f"У {mention_html(target.id, target.full_name)} уже есть перк «Зарплата».", parse_mode="HTML")
+        return
+
+    await grant_perk(target.id, "зп")
+    await message.reply(
+        f"Перк «Зарплата» выдан {mention_html(target.id, target.full_name)}. Команда для получения: <b>зп</b> (раз в сутки).",
+        parse_mode="HTML",
+    )
+
+
+async def handle_revoke_salary_perk(message: types.Message):
+    target = message.reply_to_message.from_user
+
+    try:
+        current = await get_perks(target.id)
+    except NameError:
+        current = set()
+
+    if "зп" not in current:
+        await message.reply(f"У {mention_html(target.id, target.full_name)} нет перка «Зарплата».", parse_mode="HTML")
+        return
+
+    await revoke_perk(target.id, "зп")
+    await message.reply(
+        f"Перк «Зарплата» снят у {mention_html(target.id, target.full_name)}.",
+        parse_mode="HTML",
+    )

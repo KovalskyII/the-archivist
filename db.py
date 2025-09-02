@@ -262,3 +262,35 @@ async def get_perks(user_id: int):
         elif action == "perk_revoke":
             perks.discard(code)
     return perks
+
+# --- Зарплата (перки) без миграций ---
+async def get_seconds_since_last_salary_claim(user_id: int, perk_code: str = "зп") -> int | None:
+    """
+    Возвращает число секунд с момента последнего получения 'зп' или None, если еще не было.
+    Считаем по history: action='salary_claim', reason='зп'.
+    """
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute(
+            """
+            SELECT CAST(strftime('%s','now') AS INTEGER) - CAST(strftime('%s', date) AS INTEGER)
+            FROM history
+            WHERE user_id = ? AND action = 'salary_claim' AND reason = ?
+            ORDER BY id DESC LIMIT 1
+            """,
+            (user_id, perk_code),
+        ) as cur:
+            row = await cur.fetchone()
+            if row is None:
+                return None
+            return row[0]
+
+async def record_salary_claim(user_id: int, amount: int, perk_code: str = "зп"):
+    """
+    Фиксирует выдачу зарплаты в history: action='salary_claim', amount=5, reason='зп'.
+    """
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "INSERT INTO history (user_id, action, amount, reason) VALUES (?, 'salary_claim', ?, ?)",
+            (user_id, amount, perk_code),
+        )
+        await db.commit()
