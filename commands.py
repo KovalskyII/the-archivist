@@ -180,6 +180,11 @@ async def handle_message(message: types.Message):
 
     # --- Команды только Куратора ---
     if author_id == KURATOR_ID:
+        if text.startswith("даровать "):
+            code = text.split(" ", 1)[1].strip().lower()
+            if code in PERK_REGISTRY:          # распознаём только коды перков
+                await handle_grant_perk_universal(message, code)
+                return
         if text.startswith("назначить ") and message.reply_to_message:
             await handle_naznachit(message)
             return
@@ -202,19 +207,11 @@ async def handle_message(message: types.Message):
         if text.startswith("обнулить баланс"):
             await handle_obnulit_balans(message)
             return
-        # выдача/снятие конкретного перка (пример — "иммунитет") в ответ на сообщение участника
-        if text == "даровать иммунитет" and message.reply_to_message:
-            await handle_grant_immunity(message)
-            return
-        if text == "снять иммунитет" and message.reply_to_message:
-            await handle_revoke_immunity(message)
-            return
-        if text == "даровать зп":
-            await handle_grant_salary_perk(message)
-            return
-        if text == "снять зп":
-            await handle_revoke_salary_perk(message)
-            return
+        if text.startswith("уничтожить "):
+            code = text.split(" ", 1)[1].strip().lower()
+            if code in PERK_REGISTRY:
+                await handle_revoke_perk_universal(message, code)
+                return
 
 
 async def handle_photo_command(message: types.Message):
@@ -539,16 +536,6 @@ async def handle_perks_of(message: types.Message):
         lines.append(line)
     await message.reply("\n".join(lines), parse_mode="HTML")
 
-async def handle_grant_immunity(message: types.Message):
-    target = message.reply_to_message.from_user
-    await grant_perk(target.id, "иммунитет")
-    await message.reply(f"Иммунитет дарован @{target.username or target.full_name}")
-
-async def handle_revoke_immunity(message: types.Message):
-    target = message.reply_to_message.from_user
-    await revoke_perk(target.id, "иммунитет")
-    await message.reply(f"Иммунитет снят у @{target.username or target.full_name}")
-
 async def handle_salary_claim(message: types.Message):
     user_id = message.from_user.id
     # проверяем, есть ли у пользователя перк "зп"
@@ -581,44 +568,32 @@ async def handle_salary_claim(message: types.Message):
     await message.reply(f"💵 Начислено {AMOUNT} нуаров по перку «Зарплата».")
 
 
-async def handle_grant_salary_perk(message: types.Message):
+async def handle_grant_perk_universal(message: types.Message, code: str):
     target = message.reply_to_message.from_user
-    # защитимся от выдачи ботам (по желанию)
-    if getattr(target, "is_bot", False):
-        await message.reply("Этот перк не выдается ботам.")
+    perks = await get_perks(target.id)
+    if code in perks:
+        await message.reply(
+            f"У {mention_html(target.id, target.full_name)} уже есть «{PERK_REGISTRY[code]['title']}».",
+            parse_mode="HTML"
+        )
         return
-
-    # если уже выдан — сообщим
-    try:
-        current = await get_perks(target.id)
-    except NameError:
-        current = set()
-
-    if "зп" in current:
-        await message.reply(f"У {mention_html(target.id, target.full_name)} уже есть перк «Зарплата».", parse_mode="HTML")
-        return
-
-    await grant_perk(target.id, "зп")
+    await grant_perk(target.id, code)
     await message.reply(
-        f"Перк «Зарплата» выдан {mention_html(target.id, target.full_name)}. Команда для получения: <b>зп</b> (раз в сутки).",
-        parse_mode="HTML",
+        f"Перк «{PERK_REGISTRY[code]['title']}» дарован {mention_html(target.id, target.full_name)}.",
+        parse_mode="HTML"
     )
 
-
-async def handle_revoke_salary_perk(message: types.Message):
+async def handle_revoke_perk_universal(message: types.Message, code: str):
     target = message.reply_to_message.from_user
-
-    try:
-        current = await get_perks(target.id)
-    except NameError:
-        current = set()
-
-    if "зп" not in current:
-        await message.reply(f"У {mention_html(target.id, target.full_name)} нет перка «Зарплата».", parse_mode="HTML")
+    perks = await get_perks(target.id)
+    if code not in perks:
+        await message.reply(
+            f"У {mention_html(target.id, target.full_name)} нет перка «{PERK_REGISTRY[code]['title']}».",
+            parse_mode="HTML"
+        )
         return
-
-    await revoke_perk(target.id, "зп")
+    await revoke_perk(target.id, code)
     await message.reply(
-        f"Перк «Зарплата» снят у {mention_html(target.id, target.full_name)}.",
-        parse_mode="HTML",
+        f"Перк «{PERK_REGISTRY[code]['title']}» снят у {mention_html(target.id, target.full_name)}.",
+        parse_mode="HTML"
     )
