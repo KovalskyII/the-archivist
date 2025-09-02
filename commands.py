@@ -21,9 +21,6 @@ DB_PATH = "/data/bot_data.sqlite"
 PERK_REGISTRY = {
     "иммунитет": ("🛡️", "Иммунитет к бану"),
     "зп": ("💵", "Зарплата (5 нуаров в сутки)"),
-    # дальше можно добавлять новые:
-    # "розыск": ("🚨", "Неприкосновенность при розыске"),
-    # "флирт": ("💋", "Привилегия флирта"),
 }
 
 
@@ -180,11 +177,6 @@ async def handle_message(message: types.Message):
 
     # --- Команды только Куратора ---
     if author_id == KURATOR_ID:
-        if text.startswith("даровать "):
-            code = text.split(" ", 1)[1].strip().lower()
-            if code in PERK_REGISTRY:          # распознаём только коды перков
-                await handle_grant_perk_universal(message, code)
-                return
         if text.startswith("назначить ") and message.reply_to_message:
             await handle_naznachit(message)
             return
@@ -207,12 +199,16 @@ async def handle_message(message: types.Message):
         if text.startswith("обнулить баланс"):
             await handle_obnulit_balans(message)
             return
-        if text.startswith("уничтожить "):
+        if text.startswith("даровать ") and message.reply_to_message:
+            code = text.split(" ", 1)[1].strip().lower()
+            if code in PERK_REGISTRY:
+                await handle_grant_perk_universal(message, code)
+                return
+        if text.startswith("уничтожить ") and message.reply_to_message:
             code = text.split(" ", 1)[1].strip().lower()
             if code in PERK_REGISTRY:
                 await handle_revoke_perk_universal(message, code)
                 return
-
 
 async def handle_photo_command(message: types.Message):
     # Только куратор устанавливает фото роли
@@ -569,31 +565,46 @@ async def handle_salary_claim(message: types.Message):
 
 
 async def handle_grant_perk_universal(message: types.Message, code: str):
+    if not message.reply_to_message:
+        await message.reply("Даровать перк можно только ответом на сообщение участника.")
+        return
+
     target = message.reply_to_message.from_user
     perks = await get_perks(target.id)
+
+    emoji, title = PERK_REGISTRY.get(code, ("", code))
     if code in perks:
         await message.reply(
-            f"У {mention_html(target.id, target.full_name)} уже есть «{PERK_REGISTRY[code]['title']}».",
+            f"У {mention_html(target.id, target.full_name)} уже есть «{title}».",
             parse_mode="HTML"
         )
         return
+
     await grant_perk(target.id, code)
     await message.reply(
-        f"Перк «{PERK_REGISTRY[code]['title']}» дарован {mention_html(target.id, target.full_name)}.",
+        f"Перк «{title}» дарован {mention_html(target.id, target.full_name)}.",
         parse_mode="HTML"
     )
 
+
 async def handle_revoke_perk_universal(message: types.Message, code: str):
+    if not message.reply_to_message:
+        await message.reply("Уничтожить перк можно только ответом на сообщение участника.")
+        return
+
     target = message.reply_to_message.from_user
     perks = await get_perks(target.id)
+
+    emoji, title = PERK_REGISTRY.get(code, ("", code))
     if code not in perks:
         await message.reply(
-            f"У {mention_html(target.id, target.full_name)} нет перка «{PERK_REGISTRY[code]['title']}».",
+            f"У {mention_html(target.id, target.full_name)} нет перка «{title}».",
             parse_mode="HTML"
         )
         return
+
     await revoke_perk(target.id, code)
     await message.reply(
-        f"Перк «{PERK_REGISTRY[code]['title']}» снят у {mention_html(target.id, target.full_name)}.",
+        f"Перк «{title}» уничтожен у {mention_html(target.id, target.full_name)}.",
         parse_mode="HTML"
     )
