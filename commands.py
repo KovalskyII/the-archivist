@@ -622,25 +622,22 @@ async def handle_dozhd(message: types.Message):
         return
 
     total = int(m.group(1))
-    if total <= 0:
-        await message.reply("Я не могу пролить отрицательный дождь.")
+    if total < 5:
+        await message.reply("Минимальный дождь — 5 нуаров.")
         return
 
     giver_id = message.from_user.id
-    # проверка баланса автора
     bal = await get_balance(giver_id)
     if total > bal:
         await message.reply(f"У Вас недостаточно нуаров. Баланс: {bal}")
         return
 
-    # Кого можем «намочить»: известные боту пользователи, кроме автора и ботов, реально в этом чате
+    # кандидаты: известные боту пользователи, кроме автора; в этом чате; не боты
     candidate_ids = [uid for uid in await get_known_users() if uid != giver_id]
-    eligible: list[tuple[int, str]] = []  # (user_id, display_name)
-
+    eligible: list[tuple[int, str]] = []
     for uid in candidate_ids:
         try:
             member = await message.bot.get_chat_member(message.chat.id, uid)
-            # статусы: creator/administrator/member/restricted — ок; left/kicked — нет
             if member.status in ("left", "kicked"):
                 continue
             if getattr(member.user, "is_bot", False):
@@ -648,19 +645,18 @@ async def handle_dozhd(message: types.Message):
             name = member.user.full_name or "Участник"
             eligible.append((uid, name))
         except Exception:
-            # не в этом чате / недоступен
             continue
 
     if not eligible:
         await message.reply("Некого намочить — я не вижу участников в этом чате.")
         return
 
-    # выбираем случайных до 5
+    # выбираем до 5 случайных
     random.shuffle(eligible)
     recipients = eligible[:5]
     n = len(recipients)
 
-    # целочисленное распределение (без дробей в БД): остаток раздаём по одному сверху
+    # целочисленное распределение (БД хранит INTEGER)
     base = total // n
     rest = total % n
     per_user = [base + (1 if i < rest else 0) for i in range(n)]
@@ -671,6 +667,12 @@ async def handle_dozhd(message: types.Message):
         if amt > 0:
             await change_balance(uid, amt, "дождь", giver_id)
 
-    # сообщение: кликабельные имена
-    mentions = [mention_html(uid, name) for uid, name in recipients]
-    await message.reply(f"🌧 Прошёл дождь. Намокли: {', '.join(mentions)}", parse_mode="HTML")
+    breakdown = [
+        f"{mention_html(uid, name)} — на {amt} нуаров"
+        for (uid, name), amt in zip(recipients, per_user) if amt > 0
+    ]
+
+    await message.reply(
+        "🌧 Прошёл дождь. Намокли: " + ", ".join(breakdown),
+        parse_mode="HTML"
+    )
