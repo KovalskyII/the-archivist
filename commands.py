@@ -2,6 +2,7 @@ import re
 import os
 import sys
 import asyncio
+import random
 from aiogram import types
 from aiogram.types import FSInputFile
 
@@ -11,7 +12,8 @@ from db import (
     get_top_users, get_all_roles, reset_user_balance,
     reset_all_balances, set_role_image, get_role_with_image,
     get_key_holders, grant_perk, revoke_perk, get_perks,
-    get_seconds_since_last_salary_claim, record_salary_claim
+    get_seconds_since_last_salary_claim, record_salary_claim,
+    get_known_users,
 )
 
 KURATOR_ID = 164059195
@@ -157,6 +159,11 @@ async def handle_message(message: types.Message):
     if text == "получить зп":
         await handle_salary_claim(message)
         return
+
+    if text.startswith("дождь "):
+        await handle_dozhd(message)
+        return
+
 
 
 
@@ -586,7 +593,6 @@ async def handle_grant_perk_universal(message: types.Message, code: str):
         parse_mode="HTML"
     )
 
-
 async def handle_revoke_perk_universal(message: types.Message, code: str):
     if not message.reply_to_message:
         await message.reply("Уничтожить перк можно только ответом на сообщение участника.")
@@ -608,3 +614,63 @@ async def handle_revoke_perk_universal(message: types.Message, code: str):
         f"Перк «{title}» уничтожен у {mention_html(target.id, target.full_name)}.",
         parse_mode="HTML"
     )
+
+async def handle_dozhd(message: types.Message):
+    m = re.match(r"^дождь\s+(\d+)$", message.text.strip(), re.IGNORECASE)
+    if not m:
+        await message.reply("Обращение не по этикету Клуба. Пример: 'дождь 10'")
+        return
+
+    total = int(m.group(1))
+    if total <= 0:
+        await message.reply("Я не могу пролить отрицательный дождь.")
+        return
+
+    giver_id = message.from_user.id
+    # проверка баланса автора
+    bal = await get_balance(giver_id)
+    if total > bal:
+        await message.reply(f"У Вас недостаточно нуаров. Баланс: {bal}")
+        return
+
+    # Кого можем «намочить»: известные боту пользователи, кроме автора и ботов, реально в этом чате
+    candidate_ids = [uid for uid in await get_known_users() if uid != giver_id]
+    eligible: list[tuple[int, str]] = []  # (user_id, display_name)
+
+    for uid in candidate_ids:
+        try:
+            member = await message.bot.get_chat_member(message.chat.id, uid)
+            # статусы: creator/administrator/member/restricted — ок; left/kicked — нет
+            if member.status in ("left", "kicked"):
+                continue
+            if getattr(member.user, "is_bot", False):
+                continue
+            name = member.user.full_name or "Участник"
+            eligible.append((uid, name))
+        except Exception:
+            # не в этом чате / недоступен
+            continue
+
+    if not eligible:
+        await message.reply("Некого намочить — я не вижу участников в этом чате.")
+        return
+
+    # выбираем случайных до 5
+    random.shuffle(eligible)
+    recipients = eligible[:5]
+    n = len(recipients)
+
+    # целочисленное распределение (без дробей в БД): остаток раздаём по одному сверху
+    base = total // n
+    rest = total % n
+    per_user = [base + (1 if i < rest else 0) for i in range(n)]
+
+    # списываем у автора и начисляем получателям
+    await change_balance(giver_id, -total, "дождь", giver_id)
+    for (uid, _name), amt in zip(recipients, per_user):
+        if amt > 0:
+            await change_balance(uid, amt, "дождь", giver_id)
+
+    # сообщение: кликабельные имена
+    mentions = [mention_html(uid, name) for uid, name in recipients]
+    await message.reply(f"🌧 Прошёл дождь. Намокли: {', '.join(mentions)}", parse_mode="HTML")

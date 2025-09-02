@@ -294,3 +294,10 @@ async def record_salary_claim(user_id: int, amount: int, perk_code: str = "зп"
             (user_id, amount, perk_code),
         )
         await db.commit()
+
+# --- Служебное: список известных боту пользователей (по users) ---
+async def get_known_users() -> list[int]:
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("SELECT user_id FROM users") as cur:
+            rows = await cur.fetchall()
+            return [r[0] for r in rows]
