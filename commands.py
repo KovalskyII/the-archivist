@@ -3,6 +3,7 @@ import os
 import sys
 import asyncio
 import random
+import html
 from typing import List, Tuple
 
 from aiogram import types
