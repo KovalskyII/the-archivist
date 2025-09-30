@@ -970,23 +970,31 @@ async def handle_market_show(message: types.Message):
     burn_bps = await get_burn_bps()
 
     # ===== Перки =====
+    # Перки
     perk_blocks = []
     for code, (emoji, title) in PERK_REGISTRY.items():
         price = await get_price_perk(code)
-        price_str = f"{fmt_money(price)}" if price is not None else "не продаётся"
-        usage = "—"
+        price_str = f"🪙{fmt_int(price)} нуаров" if price is not None else "не продаётся"
+
+        # для витрины убираем приписки в скобках только визуально
+        title_base = title.split(" (", 1)[0]
+
         if code == "зп":
             usage = "«получить зп»"
         elif code == "вор":
             usage = "«украсть» / «своровать» (reply)"
         elif code == "иммунитет":
-            usage = "амулет (одноразовая защита)"
+            usage = "—"
+        else:
+            usage = "—"
+
         perk_blocks.append(
-            f"{emoji} <b>{title}</b>\n"
+            f"{emoji} <b>{title_base}</b>\n"
             f"Цена: {price_str}\n"
             f"Команда использования: {usage}\n"
             f"Команда покупки: купить перк {code}"
         )
+
 
     # ===== Лоты участников =====
     offers = await list_active_offers()
