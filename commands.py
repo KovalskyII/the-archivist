@@ -155,7 +155,17 @@ async def handle_message(message: types.Message):
         return
 
     if text_l.startswith("ставлю"):
-        await handle_kubik(message)
+        tl = text_l
+        if ("🎲" in tl) or ("кубик" in tl):
+            await handle_kubik(message); return
+        if ("🎯" in tl) or ("дартс" in tl):
+            await handle_darts(message); return
+        if ("🎳" in tl) or ("боулинг" in tl):
+            await handle_bowling(message); return
+        if ("🎰" in tl) or ("автоматы" in tl) or ("слоты" in tl):
+            await handle_slots(message); return
+        # если не распознали игру — подскажем формат
+        await message.reply("Уточните игру: «ставлю N на 🎲/кубик | 🎯/дартс | 🎳/боулинг | 🎰/автоматы».")
         return
 
     if text_l == "мои перки":
@@ -641,6 +651,145 @@ async def handle_kubik(message: types.Message):
             f"Вы потеряли {fmt_money(amount)}.",
             parse_mode="HTML"
         )
+async def handle_darts(message: types.Message):
+    m = re.match(r"^\s*ставлю\s+(\d+)\s+на\s+(?:🎯|дартс)\s*$", message.text.strip(), re.IGNORECASE)
+    if not m:
+        await message.reply("Пример: «ставлю 10 на 🎯|дартс»"); return
+    if not await get_casino_on():
+        await message.reply("🎰 Казино закрыто."); return
+
+    amount = int(m.group(1))
+    if amount <= 0:
+        await message.reply("Я не могу принять отрицательную ставку."); return
+
+    max_bet = await get_limit_bet()
+    if max_bet and amount > max_bet:
+        await message.reply(f"Лимит ставки: не более {max_bet}."); return
+
+    gambler_id = message.from_user.id
+    balance = await get_balance(gambler_id)
+    if amount > balance:
+        await message.reply(f"🔍У Вас недостаточно нуаров. Баланс: {balance}"); return
+
+    mults = await get_multipliers()
+    win_mult = mults["darts"]
+
+    room = await _get_vault_room()
+    if room == -1: await message.reply("Сейф ещё не включён."); return
+    potential = amount * win_mult
+    if potential > room:
+        await message.reply("Казино закрыто на переучёт — в сейфе недостаточно средств для такой выплаты."); return
+
+    sent: types.Message = await message.answer_dice(emoji="🎯")
+    roll_value = sent.dice.value  # 1..6
+    await asyncio.sleep(3.0)
+
+    if roll_value == 6:  # буллсай
+        await change_balance(gambler_id, amount * win_mult, "ставка выигрыш (дартс)", gambler_id)
+        await message.reply(
+            f"🎯 Метко! {mention_html(gambler_id, message.from_user.full_name)} получает {fmt_money(amount * win_mult)}",
+            parse_mode="HTML"
+        )
+    else:
+        await change_balance(gambler_id, -amount, "ставка проигрыш (дартс)", gambler_id)
+        await message.reply(
+            f"🙈 Не попал. {mention_html(gambler_id, message.from_user.full_name)} теряет {fmt_money(amount)}.",
+            parse_mode="HTML"
+        )
+
+
+async def handle_bowling(message: types.Message):
+    m = re.match(r"^\s*ставлю\s+(\d+)\s+на\s+(?:🎳|боулинг)\s*$", message.text.strip(), re.IGNORECASE)
+    if not m:
+        await message.reply("Пример: «ставлю 10 на 🎳|боулинг»"); return
+    if not await get_casino_on():
+        await message.reply("🎰 Казино закрыто."); return
+
+    amount = int(m.group(1))
+    if amount <= 0:
+        await message.reply("Я не могу принять отрицательную ставку."); return
+
+    max_bet = await get_limit_bet()
+    if max_bet and amount > max_bet:
+        await message.reply(f"Лимит ставки: не более {max_bet}."); return
+
+    gambler_id = message.from_user.id
+    balance = await get_balance(gambler_id)
+    if amount > balance:
+        await message.reply(f"🔍У Вас недостаточно нуаров. Баланс: {balance}"); return
+
+    mults = await get_multipliers()
+    win_mult = mults["bowling"]
+
+    room = await _get_vault_room()
+    if room == -1: await message.reply("Сейф ещё не включён."); return
+    potential = amount * win_mult
+    if potential > room:
+        await message.reply("Казино закрыто на переучёт — в сейфе недостаточно средств для такой выплаты."); return
+
+    sent: types.Message = await message.answer_dice(emoji="🎳")
+    roll_value = sent.dice.value  # 1..6
+    await asyncio.sleep(3.0)
+
+    if roll_value == 6:  # страйк
+        await change_balance(gambler_id, amount * win_mult, "ставка выигрыш (боулинг)", gambler_id)
+        await message.reply(
+            f"🎳 Страйк! {mention_html(gambler_id, message.from_user.full_name)} получает {fmt_money(amount * win_mult)}",
+            parse_mode="HTML"
+        )
+    else:
+        await change_balance(gambler_id, -amount, "ставка проигрыш (боулинг)", gambler_id)
+        await message.reply(
+            f"💨 Мимо кеглей. {mention_html(gambler_id, message.from_user.full_name)} теряет {fmt_money(amount)}.",
+            parse_mode="HTML"
+        )
+
+
+async def handle_slots(message: types.Message):
+    m = re.match(r"^\s*ставлю\s+(\d+)\s+на\s+(?:🎰|автоматы|слоты)\s*$", message.text.strip(), re.IGNORECASE)
+    if not m:
+        await message.reply("Пример: «ставлю 10 на 🎰|автоматы»"); return
+    if not await get_casino_on():
+        await message.reply("🎰 Казино закрыто."); return
+
+    amount = int(m.group(1))
+    if amount <= 0:
+        await message.reply("Я не могу принять отрицательную ставку."); return
+
+    max_bet = await get_limit_bet()
+    if max_bet and amount > max_bet:
+        await message.reply(f"Лимит ставки: не более {max_bet}."); return
+
+    gambler_id = message.from_user.id
+    balance = await get_balance(gambler_id)
+    if amount > balance:
+        await message.reply(f"🔍У Вас недостаточно нуаров. Баланс: {balance}"); return
+
+    mults = await get_multipliers()
+    win_mult = mults["slots"]
+
+    room = await _get_vault_room()
+    if room == -1: await message.reply("Сейф ещё не включён."); return
+    potential = amount * win_mult
+    if potential > room:
+        await message.reply("Казино закрыто на переучёт — в сейфе недостаточно средств для такой выплаты."); return
+
+    sent: types.Message = await message.answer_dice(emoji="🎰")
+    roll_value = sent.dice.value  # 1..64 у Telegram
+    await asyncio.sleep(3.2)
+
+    if roll_value == 64:  # джекпот (три семёрки)
+        await change_balance(gambler_id, amount * win_mult, "ставка выигрыш (автоматы)", gambler_id)
+        await message.reply(
+            f"🎰 Джекпот! {mention_html(gambler_id, message.from_user.full_name)} получает {fmt_money(amount * win_mult)}",
+            parse_mode="HTML"
+        )
+    else:
+        await change_balance(gambler_id, -amount, "ставка проигрыш (автоматы)", gambler_id)
+        await message.reply(
+            f"🍒 Не повезло. {mention_html(gambler_id, message.from_user.full_name)} теряет {fmt_money(amount)}.",
+            parse_mode="HTML"
+        )
 
 # ------------- перки: мои/чужие, даровать/уничтожить, ЗП, вор -------------
 
@@ -1102,7 +1251,7 @@ async def handle_commands_catalog(message: types.Message):
         "рейтинг клуба / члены клуба / хранители ключа",
         "передать <N> (reply) — перевод участнику",
         "дождь <N> — раздать до 5 случайным",
-        "ставлю <N> на 🎲 — ставка в кубик",
+        "ставлю <N> на 🎲/кубик | 🎯/дартс | 🎳/боулинг | 🎰/автоматы — ставка в игру",
         "рынок — витрина товаров и лотов",
         "купить эмеральд / купить перк <код> / купить <offer_id>",
         "выставить <ссылка> <цена> / снять лот <offer_id>",
