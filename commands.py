@@ -100,9 +100,15 @@ async def handle_message(message: types.Message):
         return
 
     # ======= Команды для всех =======
-    if message.text and message.text.lower().split("@", 1)[0].strip() in ("список команд", "команды", "/команды", "/help"):
-        await handle_commands_catalog(message)
+    t = message.text.lower().strip().split("@", 1)[0]
+    if t in ("список команд", "команды", "/команды", "/help"):
+        try:
+            await handle_commands_catalog(message)
+        except Exception as e:
+            # подстраховка: покажем понятную ошибку, чтобы не падать
+            await message.reply(f"Не удалось сформировать список команд: {e}")
         return
+
         
     if text_l == "мой карман":
         bal = await get_balance(author_id)
@@ -1058,8 +1064,16 @@ async def handle_kurator_karman(message: types.Message):
 
 # --------- динамический «список команд» ---------
 
+# commands.py
+def bullets(items: list[str]) -> str:
+    # Превратим <...> в «...» и добавим маркер
+    safe_lines = []
+    for s in items:
+        s = s.replace("<", "«").replace(">", "»")
+        safe_lines.append(f"• {s}")
+    return "\n".join(safe_lines)
+
 async def handle_commands_catalog(message: types.Message):
-    # Куратор
     curator = [
         "включить сейф <CAP> — включить экономику и рассчитать сейф",
         "перезапустить сейф <CAP> подтверждаю — аварийная переинициализация экономики",
@@ -1078,13 +1092,11 @@ async def handle_commands_catalog(message: types.Message):
         "ключ от сейфа (reply) / снять ключ (reply)",
         "обнулить баланс (reply) / обнулить балансы / обнулить клуб",
     ]
-    # Владельцы ключа
     keyholders = [
         "вручить <N> (reply) — выдать из сейфа",
         "взыскать <N> (reply) — забрать в сейф",
         "карман (reply) — посмотреть баланс участника",
     ]
-    # Члены клуба
     members = [
         "мой карман / моя роль / роль (reply)",
         "рейтинг клуба / члены клуба / хранители ключа",
@@ -1100,16 +1112,12 @@ async def handle_commands_catalog(message: types.Message):
         "сейф — сводка экономики клуба",
     ]
 
-def bullets(items: list[str]) -> str:
-    def fmt(s: str) -> str:
-        # Любое <что-то> превратим в <code>что-то</code>
-        return re.sub(r"<([^<>]+)>", r"<code>\1</code>", s)
-    return "\n".join(f"• {fmt(s)}" for s in items)
-
     txt = (
-        "📜 <b>Список команд</b>\n\n"
-        "👑 <b>Куратор</b>\n" + bullets(curator) + "\n\n"
-        "🗝 <b>Владельцы ключа</b>\n" + bullets(keyholders) + "\n\n"
-        "🎭 <b>Члены клуба</b>\n" + bullets(members)
+        "📜 Список команд\n\n"
+        "👑 Куратор\n" + bullets(curator) + "\n\n"
+        "🗝 Владельцы ключа\n" + bullets(keyholders) + "\n\n"
+        "🎭 Члены клуба\n" + bullets(members)
     )
-    await message.reply(txt, parse_mode="HTML")
+    # ВАЖНО: без parse_mode
+    await message.reply(txt)
+
