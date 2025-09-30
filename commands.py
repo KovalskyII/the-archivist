@@ -100,7 +100,7 @@ async def handle_message(message: types.Message):
         return
 
     # ======= Команды для всех =======
-    if text_l in ("список команд", "команды"):
+    if message.text and message.text.lower().split("@", 1)[0].strip() in ("список команд", "команды", "/команды", "/help"):
         await handle_commands_catalog(message)
         return
         
