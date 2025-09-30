@@ -1099,7 +1099,7 @@ async def handle_commands_catalog(message: types.Message):
         "сейф — сводка экономики клуба",
     ]
 
-    def bullets(items: List[str]) -> str:
+    def bullets(items: list[str]) -> str:
         return "\n".join(f"• {s}" for s in items)
 
     txt = (
