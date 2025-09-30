@@ -842,6 +842,47 @@ async def handle_revoke_perk_universal(message: types.Message, code: str):
     await revoke_perk(target.id, code)
     await message.reply(f"Перк «{title}» уничтожен у {mention_html(target.id, target.full_name)}.", parse_mode="HTML")
 
+async def handle_perk_holders_list(message: types.Message, code: str):
+    code = code.strip().lower()
+    holders = await get_perk_holders(code)
+
+    # Человеко-читаемое имя перка, если есть в реестре
+    emoji, title = PERK_REGISTRY.get(code, ("", code))
+    nice = f"{emoji} {title}".strip()
+
+    if not holders:
+        await message.reply(f"Пока нет обладателей перка «{nice}».")
+        return
+
+    lines = [f"Обладатели перка «{nice}»:"]
+    for uid in holders:
+        # безопасно пытаемся получить имя из чата
+        name = "Участник"
+        try:
+            member = await message.bot.get_chat_member(message.chat.id, uid)
+            name = member.user.full_name or name
+        except Exception:
+            pass
+        lines.append(f"• {mention_html(uid, name)}")
+
+    await message.reply("\n".join(lines), parse_mode="HTML")
+
+
+async def handle_perk_registry(message: types.Message):
+    summary = await get_perks_summary()  # список [(code, count)]
+    if not summary:
+        await message.reply("Пока никто не получал перков.")
+        return
+
+    lines = ["Сводка по перкам:"]
+    for code, cnt in summary:
+        emoji, title = PERK_REGISTRY.get(code, ("", code))
+        nice = f"{emoji} {title}".strip()
+        lines.append(f"• {nice} — {cnt}")
+
+    await message.reply("\n".join(lines))
+
+
 async def handle_salary_claim(message: types.Message):
     user_id = message.from_user.id
     perks = await get_perks(user_id)
