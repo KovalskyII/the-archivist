@@ -72,8 +72,11 @@ def render_perks(perk_codes: set[str]) -> str:
 
 # -------- вспомогательные форматтеры --------
 
+def fmt_int(n: int) -> str:
+    return f"{n:,}"
+
 def fmt_money(n: int) -> str:
-    return f"🪙{n} нуаров"
+    return f"🪙{fmt_int(n)} нуаров"
 
 def fmt_percent_bps(bps: int) -> str:
     # 100 bps = 1%
@@ -205,6 +208,11 @@ async def handle_message(message: types.Message):
         return
 
     m = re.match(r"^купить\s+(\d+)$", text_l)
+    if m:
+        await handle_offer_buy(message, int(m.group(1)))
+        return
+
+    m = re.match(r"^купить\s+лот\s+(\d+)$", text_l)
     if m:
         await handle_offer_buy(message, int(m.group(1)))
         return
@@ -958,44 +966,70 @@ async def handle_theft(message: types.Message):
 # ------------- рынок -------------
 
 async def handle_market_show(message: types.Message):
-    # Эмеральд
     price_emerald = await get_price_emerald()
-    # Перки
-    perk_lines = []
+    burn_bps = await get_burn_bps()
+
+    # ===== Перки =====
+    perk_blocks = []
     for code, (emoji, title) in PERK_REGISTRY.items():
         price = await get_price_perk(code)
-        price_str = f"{price} нуаров" if price else "не продаётся"
-        usage = ""
+        price_str = f"{fmt_money(price)}" if price is not None else "не продаётся"
+        usage = "—"
         if code == "зп":
-            usage = " — команда использования: «получить зп»"
+            usage = "«получить зп»"
         elif code == "вор":
-            usage = " — команда использования: «украсть/своровать» (reply)"
+            usage = "«украсть» / «своровать» (reply)"
         elif code == "иммунитет":
-            usage = " — одноразовая защита (амулет)"
-        perk_lines.append(f"{emoji} <b>{title}</b> — {price_str}{usage}\nКоманда: купить перк {code}")
-    # Офферы
+            usage = "амулет (одноразовая защита)"
+        perk_blocks.append(
+            f"{emoji} <b>{title}</b>\n"
+            f"Цена: {price_str}\n"
+            f"Команда использования: {usage}\n"
+            f"Команда покупки: купить перк {code}"
+        )
+
+    # ===== Лоты участников =====
     offers = await list_active_offers()
-    offer_lines = []
+    offer_blocks = []
     for o in offers:
-        seller = o["seller_id"]
+        seller_id = o["seller_id"]
         price = o["price"]
         link = o["link"] or "(ссылка не указана)"
-        try:
-            member = await message.bot.get_chat_member(message.chat.id, seller)
-            seller_name = member.user.username and f"@{member.user.username}" or member.user.full_name
-        except Exception:
-            seller_name = "Участник"
-        offer_lines.append(f"#{o['offer_id']} — {link} — {price} нуаров — продавец: {seller_name} — Команда: купить {o['offer_id']}")
+        offer_id = o["offer_id"]
 
-    burn_bps = await get_burn_bps()
+        # юзерка продавца (если нет username — выводим кликабельное имя)
+        try:
+            member = await message.bot.get_chat_member(message.chat.id, seller_id)
+            if member.user.username:
+                seller_repr = f"@{member.user.username}"
+            else:
+                seller_repr = mention_html(seller_id, member.user.full_name or "Участник")
+        except Exception:
+            seller_repr = "Участник"
+
+        offer_blocks.append(
+            f"Товар: {link}\n"
+            f"Номер лота: {offer_id}\n"
+            f"Цена: {fmt_money(price)}\n"
+            f"Продавец: {seller_repr}\n"
+            f"Команда покупки: купить лот {offer_id}"
+        )
+
     txt = (
-        "🛒 <b>Рынок</b>\n\n"
-        f"💎 Эмеральд — {price_emerald} нуаров — Команда: купить эмеральд\n\n"
-        "🎖 <b>Перки</b>:\n" + ("\n".join(perk_lines) if perk_lines else "Пусто") + "\n\n"
-        "📦 <b>Лоты участников</b>:\n" + ("\n".join(offer_lines) if offer_lines else "Пока нет активных лотов.") + "\n\n"
+        "🛒 <b>РЫНОК</b>\n\n"
+        f"💎 Эмеральд: {fmt_money(price_emerald)}\n"
+        f"Команда покупки: купить эмеральд\n\n"
+        "🎖 <b>ПЕРКИ</b>\n" +
+        ("\n\n".join(perk_blocks) if perk_blocks else "Пока ничего нет.") +
+        "\n\n"
+        "📦 <b>ЛОТЫ УЧАСТНИКОВ</b>\n" +
+        ("\n\n".join(offer_blocks) if offer_blocks else "Пока нет активных лотов.") +
+        "\n\n"
         f"🔥 Сжигание на рынке: {fmt_percent_bps(burn_bps)} (округление вниз)"
     )
+
     await message.reply(txt, parse_mode="HTML")
+
 
 async def handle_offer_create(message: types.Message, link: str, price: int):
     if price <= 0:
