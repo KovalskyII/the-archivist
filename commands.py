@@ -842,21 +842,27 @@ async def handle_revoke_perk_universal(message: types.Message, code: str):
     await revoke_perk(target.id, code)
     await message.reply(f"Перк «{title}» уничтожен у {mention_html(target.id, target.full_name)}.", parse_mode="HTML")
 
-async def handle_perk_holders_list(message: types.Message, code: str):
-    code = code.strip().lower()
-    holders = await get_perk_holders(code)
+async def handle_perk_holders_list(message: types.Message, code_raw: str):
+    code = code_raw.strip().lower()
 
-    # Человеко-читаемое имя перка, если есть в реестре
-    emoji, title = PERK_REGISTRY.get(code, ("", code))
-    nice = f"{emoji} {title}".strip()
-
-    if not holders:
-        await message.reply(f"Пока нет обладателей перка «{nice}».")
+    # 1) проверяем, что такой перк вообще существует
+    if code not in PERK_REGISTRY:
+        available = ", ".join(sorted(PERK_REGISTRY.keys()))
+        await message.reply(f"Такого перка нет. Доступные коды: {available}")
         return
 
-    lines = [f"Обладатели перка «{nice}»:"]
+    emoji, title = PERK_REGISTRY[code]
+
+    # 2) собираем держателей
+    holders = await get_perk_holders(code)
+    if not holders:
+        await message.reply(f"{emoji} Никто пока не обладает перком «{title}».")
+        return
+
+    # 3) красиво выводим список с кликабельными именами
+    lines = [f"{emoji} Обладатели перка «{title}»:"]
+
     for uid in holders:
-        # безопасно пытаемся получить имя из чата
         name = "Участник"
         try:
             member = await message.bot.get_chat_member(message.chat.id, uid)
@@ -866,6 +872,7 @@ async def handle_perk_holders_list(message: types.Message, code: str):
         lines.append(f"• {mention_html(uid, name)}")
 
     await message.reply("\n".join(lines), parse_mode="HTML")
+
 
 
 async def handle_perk_registry(message: types.Message):
@@ -1177,28 +1184,48 @@ async def handle_vault_reset(message: types.Message):
         return
     await message.reply(f"Сейф перезапущен. Новый кап: {cap}. В обороте: {circulating}.")
 
+def _bar(pct: float, width: int = 12) -> str:
+    """Текстовая полоска прогресса: ███░░░"""
+    pct = max(0.0, min(100.0, pct))
+    filled = int(round(pct * width / 100))
+    return "█" * filled + "░" * (width - filled)
+
 async def handle_vault_stats(message: types.Message):
     stats = await get_economy_stats()
     if not stats:
         await message.reply("Сейф ещё не включён.")
         return
-    bps = stats["burn_bps"]
-    pct = fmt_percent_bps(bps)
-    # процент сожжённого от капа
-    burned_pct = 0.0
-    if stats["cap"] > 0:
-        burned_pct = (stats["burned"] / stats["cap"]) * 100
-    income = stats["income"]
+
+    cap         = stats["cap"]
+    burned      = stats["burned"]
+    circulating = stats["circulating"]
+    vault       = stats["vault"]
+    bps         = stats["burn_bps"]
+    income      = stats["income"]
+
+    # проценты от капа
+    pct = lambda v: (v / cap * 100) if cap > 0 else 0.0
+    p_circ = pct(circulating)
+    p_burn = pct(burned)
+    p_vault = pct(vault)
+
+    # “красивые” строки
     txt = (
         "🏦 <b>Экономика Клуба</b>\n\n"
-        f"Кап: {stats['cap']}\n"
-        f"В обороте: {stats['circulating']}\n"
-        f"Сожжено: {stats['burned']} ({burned_pct:.2f}%)\n"
-        f"В сейфе: {stats['vault']}\n"
-        f"Сжигание (рынок): {pct}\n"
-        f"Доходы (зп/кража): {income}"
+        f"💰 Капитaлизация: 🪙{cap}\n\n"
+        f"💼 <b>В обороте</b>: 🪙{circulating} ({p_circ:.2f}%)\n"
+        f"{_bar(p_circ)}\n"
+        f"🔐 <b>В сейфе</b>: 🪙{vault} ({p_vault:.2f}%)\n"
+        f"{_bar(p_vault)}\n"
+        f"🔥 <b>Сожжено</b>: 🪙{burned} ({p_burn:.2f}%)\n"
+        f"{_bar(p_burn)}\n\n"
+        "⚙️ <b>Параметры</b>:\n"
+        f"• Сжигание на рынке: {fmt_percent_bps(bps)} (округление вниз)\n"
+        f"• Доходы (зп/кража): 🪙{income}\n"
     )
+
     await message.reply(txt, parse_mode="HTML")
+
 
 # --------- конфиги сеттеры ---------
 
