@@ -50,7 +50,8 @@ PERK_REGISTRY = {
 }
 
 def mention_html(user_id: int, fallback: str = "Участник") -> str:
-    return f"<a href='tg://user?id={user_id}'>{fallback}</a>"
+    safe = html.escape(fallback, quote=False)
+    return f"<a href='tg://user?id={user_id}'>{safe}</a>"
 
 def render_perks(perk_codes: set[str]) -> str:
     if not perk_codes:
@@ -1099,8 +1100,11 @@ async def handle_commands_catalog(message: types.Message):
         "сейф — сводка экономики клуба",
     ]
 
-    def bullets(items: list[str]) -> str:
-        return "\n".join(f"• {s}" for s in items)
+def bullets(items: list[str]) -> str:
+    def fmt(s: str) -> str:
+        # Любое <что-то> превратим в <code>что-то</code>
+        return re.sub(r"<([^<>]+)>", r"<code>\1</code>", s)
+    return "\n".join(f"• {fmt(s)}" for s in items)
 
     txt = (
         "📜 <b>Список команд</b>\n\n"
