@@ -1230,35 +1230,25 @@ async def handle_vault_stats(message: types.Message):
         await message.reply("Сейф ещё не включён.")
         return
 
-    cap         = stats["cap"]
-    burned      = stats["burned"]
-    circulating = stats["circulating"]
-    vault       = stats["vault"]
-    bps         = stats["burn_bps"]
-    income      = stats["income"]
+    cap_s          = fmt_int(stats["cap"])
+    circulating_s  = fmt_int(stats["circulating"])
+    burned_s       = fmt_int(stats["burned"])
+    vault_s        = fmt_int(stats["vault"])
+    income_s       = fmt_int(stats["income"])  # это размер «зп/кражи» в нуарах
+    bps_pct        = fmt_percent_bps(stats["burn_bps"])
+    burned_pct     = (stats["burned"] / stats["cap"] * 100) if stats["cap"] > 0 else 0.0
 
-    # проценты от капа
-    pct = lambda v: (v / cap * 100) if cap > 0 else 0.0
-    p_circ = pct(circulating)
-    p_burn = pct(burned)
-    p_vault = pct(vault)
-
-    # “красивые” строки
     txt = (
         "🏦 <b>Экономика Клуба</b>\n\n"
-        f"💰 Капитaлизация: 🪙{cap}\n\n"
-        f"💼 <b>В обороте</b>: 🪙{circulating} ({p_circ:.2f}%)\n"
-        f"{_bar(p_circ)}\n"
-        f"🔐 <b>В сейфе</b>: 🪙{vault} ({p_vault:.2f}%)\n"
-        f"{_bar(p_vault)}\n"
-        f"🔥 <b>Сожжено</b>: 🪙{burned} ({p_burn:.2f}%)\n"
-        f"{_bar(p_burn)}\n\n"
-        "⚙️ <b>Параметры</b>:\n"
-        f"• Сжигание на рынке: {fmt_percent_bps(bps)} (округление вниз)\n"
-        f"• Доходы (зп/кража): 🪙{income}\n"
+        f"🧱 Кап: {cap_s}\n"
+        f"🔄 В обороте: {circulating_s}\n"
+        f"🔥 Сожжено: {burned_s} ({burned_pct:.2f}%)\n"
+        f"🔐 В сейфе: {vault_s}\n"
+        f"🧯 Сжигание (рынок): {bps_pct}\n"
+        f"💵 Доходы (зп/кража): {income_s}"
     )
-
     await message.reply(txt, parse_mode="HTML")
+
 
 
 # --------- конфиги сеттеры ---------
