@@ -100,7 +100,10 @@ async def handle_message(message: types.Message):
         return
 
     # ======= Команды для всех =======
-
+    if text_l in ("список команд", "команды"):
+        await handle_commands_catalog(message)
+        return
+        
     if text_l == "мой карман":
         bal = await get_balance(author_id)
         await message.reply(f"У Вас в кармане {fmt_money(bal)}.")
@@ -112,10 +115,6 @@ async def handle_message(message: types.Message):
 
     if text_l == "роль" and message.reply_to_message:
         await handle_who_role(message)
-        return
-
-    if text_l in ("список команд", "команды"):
-        await handle_commands_catalog(message)
         return
 
     if text_l == "клуб":
