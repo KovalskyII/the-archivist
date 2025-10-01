@@ -1033,7 +1033,7 @@ async def handle_market_show(message: types.Message):
         "📦 <b>ЛОТЫ УЧАСТНИКОВ</b>\n" +
         ("\n\n".join(offer_blocks) if offer_blocks else "Пока нет активных лотов.") +
         "\n\n"
-        f"🔥 Сжигание на рынке: {fmt_percent_bps(burn_bps)} (округление вниз)"
+        f"🔥 Сжигание на рынке(налог): {fmt_percent_bps(burn_bps)} (округление вниз)"
     )
 
     await message.reply(txt, parse_mode="HTML")
@@ -1113,7 +1113,7 @@ async def handle_offer_buy(message: types.Message, offer_id: int):
         f"Покупатель: {mention_html(buyer_id, message.from_user.full_name)}\n"
         f"Товар: «лот #{offer_id}» ({offer['link'] or 'ссылка не указана'})\n"
         f"Цена: {fmt_money(price)}\n"
-        f"Комиссия (сжигание): {fmt_money(burn)}\n"
+        f"Комиссия (сжигание/налог): {fmt_money(burn)}\n"
         f"Перевод продавцу: {fmt_money(to_seller)}\n"
         f"Гарант: @kovalskyii\n"
         f"Продавец: {seller_mention}",
@@ -1143,7 +1143,7 @@ async def handle_buy_emerald(message: types.Message):
         f"Покупатель: {mention_html(buyer_id, message.from_user.full_name)}\n"
         f"Товар: «Эмеральд»\n"
         f"Цена: {fmt_money(price)}\n"
-        f"Комиссия (сжигание): {fmt_money(burn)}\n"
+        f"Комиссия (сжигание/налог): {fmt_money(burn)}\n"
         f"Перевод в сейф: {fmt_money(price - burn)}\n"
         f"Гарант: @kovalskyii",
         parse_mode="HTML"
@@ -1183,7 +1183,7 @@ async def handle_buy_perk(message: types.Message, code: str):
         f"Покупатель: {mention_html(buyer_id, message.from_user.full_name)}\n"
         f"Товар: «{title}»\n"
         f"Цена: {fmt_money(price)}\n"
-        f"Комиссия (сжигание): {fmt_money(burn)}\n"
+        f"Комиссия (сжигание/налог): {fmt_money(burn)}\n"
         f"Перевод в сейф: {fmt_money(price - burn)}\n"
         f"Гарант: @kovalskyii",
         parse_mode="HTML"
