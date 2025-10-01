@@ -944,14 +944,14 @@ async def handle_theft(message: types.Message):
         remain = COOLDOWN - seconds
         hours = remain // 3600
         minutes = (remain % 3600) // 60
-        await message.reply(f"Слишком часто. Повторно — через {hours}ч {minutes}м.")
+        await message.reply(f"Нужно схорониться. Повторная ходка через {hours}ч {minutes}м.")
         return
     income = await get_income()
     victim_balance = await get_balance(victim.id)
     if victim_balance < income or income <= 0:
         # неудача, кулдаун фиксируем
         await record_theft(thief_id, 0, victim.id, success=False)
-        await message.reply("🐕 Сторожевые собаки подняли лай — вор ретировался. Попробуйте через 24 часа.")
+        await message.reply("🐕 Сторожевые собаки подняли лай — пришлось бежать. Придется снова ждать 24 часа.")
         return
     # успех: перевод victim -> thief
     await change_balance(victim.id, -income, "кража", thief_id)
@@ -1247,13 +1247,13 @@ async def handle_vault_stats(message: types.Message):
     burned_pct     = (stats["burned"] / stats["cap"] * 100) if stats["cap"] > 0 else 0.0
 
     txt = (
-        "🏦 <b>Экономика Клуба</b>\n\n"
-        f"🧱 Кап: {cap_s}\n"
-        f"🔄 В обороте: {circulating_s}\n"
-        f"🔥 Сожжено: {burned_s} ({burned_pct:.2f}%)\n"
-        f"🔐 В сейфе: {vault_s}\n"
-        f"🧯 Сжигание (рынок): {bps_pct}\n"
-        f"💵 Доходы (зп/кража): {income_s}"
+        "🏦 <b>ЭКОНОМИКА КЛУБА</b>\n\n"
+        f"🧱 <b>Кап:</b> {cap_s}\n\n"
+        f"🔐 <b>В сейфе:</b> {vault_s}\n\n"
+        f"🔄 <b>На руках:</b> {circulating_s}\n\n"
+        f"🔥 <b>Сожжено:</b> {burned_s} ({burned_pct:.2f}%)\n\n"
+        f"🧯 <b>Сжигание (налоги):</b> {bps_pct}\n\n"
+        f"💵 <b>Доходы (зп/кража):</b> {income_s}"
     )
     await message.reply(txt, parse_mode="HTML")
 
