@@ -563,7 +563,7 @@ async def handle_dozhd(message: types.Message):
     # лимит дождя
     max_rain = await get_limit_rain()
     if max_rain and total > max_rain:
-        await message.reply(f"Лимит дождя: не более {max_rain} за одну команду.")
+        await message.reply(f"Лимит дождя: не более {fmt_money(max_rain)} за одну команду.")
         return
 
     giver_id = message.from_user.id
@@ -598,7 +598,7 @@ async def handle_dozhd(message: types.Message):
         if amt > 0:
             await change_balance(uid, amt, "дождь", giver_id)
     breakdown = [
-        f"{mention_html(uid, name)} — намок на {amt} нуаров"
+        f"{mention_html(uid, name)} — намок на {fmt_money(amt)}"
         for (uid, name), amt in zip(recipients, per_user) if amt > 0
     ]
     await message.reply("🌧 Прошёл дождь. Намокли: " + ", ".join(breakdown), parse_mode="HTML")
@@ -923,7 +923,7 @@ async def handle_salary_claim(message: types.Message):
         return
     await record_salary_claim(user_id, income, "зп")
     await change_balance(user_id, income, "зп", user_id)
-    await message.reply(f"💵 Начислено {income} нуаров по перку «Зарплата».")    
+    await message.reply(f"💵 Начислено {fmt_money(income)} по перку «Зарплата».")    
 
 async def handle_theft(message: types.Message):
     thief_id = message.from_user.id
@@ -1084,7 +1084,7 @@ async def handle_offer_buy(message: types.Message, offer_id: int):
     price = offer["price"]
     bal = await get_balance(buyer_id)
     if price > bal:
-        await message.reply(f"Недостаточно нуаров. Требуется {price}, на руках {bal}.")
+        await message.reply(f"Недостаточно нуаров. Требуется {fmt_money(price)}, на руках {fmt_money(bal)}.")
         return
 
     burn = await _apply_burn_and_return(price)
@@ -1109,14 +1109,14 @@ async def handle_offer_buy(message: types.Message, offer_id: int):
     contract_id = f"C-{today}-{sale_id}"
     seller_mention = mention_html(offer["seller_id"], "Продавец")
     await message.reply(
-        "🧾 Контракт {cid}\n"
+        f"🧾 Контракт {contract_id}\n"
         f"Покупатель: {mention_html(buyer_id, message.from_user.full_name)}\n"
         f"Товар: «лот #{offer_id}» ({offer['link'] or 'ссылка не указана'})\n"
-        f"Цена: {price}\n"
-        f"Комиссия (сжигание): {burn}\n"
-        f"Перевод продавцу: {to_seller}\n"
+        f"Цена: {fmt_money(price)}\n"
+        f"Комиссия (сжигание): {fmt_money(burn)}\n"
+        f"Перевод продавцу: {fmt_money(to_seller)}\n"
         f"Гарант: @kovalskyii\n"
-        f"Продавец: {seller_mention}".format(cid=contract_id),
+        f"Продавец: {seller_mention}",
         parse_mode="HTML"
     )
 
@@ -1125,7 +1125,7 @@ async def handle_buy_emerald(message: types.Message):
     buyer_id = message.from_user.id
     bal = await get_balance(buyer_id)
     if price > bal:
-        await message.reply(f"Недостаточно нуаров. Требуется {price}, на руках {bal}.")
+        await message.reply(f"Недостаточно нуаров. Требуется {fmt_money(price)}, на руках {fmt_money(bal)}.")
         return
     burn = await _apply_burn_and_return(price)
     # списываем у покупателя (остаток как бы уходит в сейф, т.к. никому не начисляем)
@@ -1139,13 +1139,13 @@ async def handle_buy_emerald(message: types.Message):
     today = datetime.utcnow().strftime("%Y%m%d")
     contract_id = f"C-{today}-{sale_id}"
     await message.reply(
-        "🧾 Контракт {cid}\n"
+        f"🧾 Контракт {contract_id}\n"
         f"Покупатель: {mention_html(buyer_id, message.from_user.full_name)}\n"
         f"Товар: «Эмеральд»\n"
-        f"Цена: {price}\n"
-        f"Комиссия (сжигание): {burn}\n"
-        f"Перевод в сейф: {price - burn}\n"
-        f"Гарант: @kovalskyii".format(cid=contract_id),
+        f"Цена: {fmt_money(price)}\n"
+        f"Комиссия (сжигание): {fmt_money(burn)}\n"
+        f"Перевод в сейф: {fmt_money(price - burn)}\n"
+        f"Гарант: @kovalskyii",
         parse_mode="HTML"
     )
 
@@ -1161,7 +1161,7 @@ async def handle_buy_perk(message: types.Message, code: str):
     buyer_id = message.from_user.id
     bal = await get_balance(buyer_id)
     if price > bal:
-        await message.reply(f"Недостаточно нуаров. Требуется {price}, на руках {bal}.")
+        await message.reply(f"Недостаточно нуаров. Требуется {fmt_money(price)}, на руках {fmt_money(bal)}.")
         return
     burn = await _apply_burn_and_return(price)
     # списываем у покупателя
@@ -1182,9 +1182,9 @@ async def handle_buy_perk(message: types.Message, code: str):
         f"🧾 Контракт {contract_id}\n"
         f"Покупатель: {mention_html(buyer_id, message.from_user.full_name)}\n"
         f"Товар: «{title}»\n"
-        f"Цена: {price}\n"
-        f"Комиссия (сжигание): {burn}\n"
-        f"Перевод в сейф: {price - burn}\n"
+        f"Цена: {fmt_money(price)}\n"
+        f"Комиссия (сжигание): {fmt_money(burn)}\n"
+        f"Перевод в сейф: {fmt_money(price - burn)}\n"
         f"Гарант: @kovalskyii",
         parse_mode="HTML"
     )
@@ -1204,7 +1204,7 @@ async def handle_vault_enable(message: types.Message):
     if rid is None:
         await message.reply("Кап меньше текущего оборота — увеличьте кап.")
         return
-    await message.reply(f"Сейф включён. Кап: {cap}. В обороте: {circulating}. Остальное заложено в сейф.")
+    await message.reply(f"Сейф включён. Кап: {fmt_int(cap)}. В обороте: {fmt_int(circulating)}. Остальное заложено в сейф.")
 
 async def get_circulating_safe() -> int:
     # обёртка на случай изоляции
@@ -1224,7 +1224,7 @@ async def handle_vault_reset(message: types.Message):
     if rid is None:
         await message.reply("Кап меньше текущего оборота — увеличьте кап.")
         return
-    await message.reply(f"Сейф перезапущен. Новый кап: {cap}. В обороте: {circulating}.")
+    await message.reply(f"Сейф перезапущен. Кап: {fmt_int(cap)}. В обороте: {fmt_int(circulating)}. Остальное заложено в сейф.")
 
 def _bar(pct: float, width: int = 12) -> str:
     """Текстовая полоска прогресса: ███░░░"""
@@ -1307,7 +1307,7 @@ async def handle_kurator_karman(message: types.Message):
     target = message.reply_to_message.from_user
     balance = await get_balance(target.id)
     await message.reply(
-        f"💼 {mention_html(target.id, target.full_name)} хранит в своём кармане {balance} нуаров.",
+        f"💼 {mention_html(target.id, target.full_name)} хранит в своём кармане {fmt_money(balance)}.",
         parse_mode="HTML"
     )
 
@@ -1353,7 +1353,7 @@ async def handle_commands_catalog(message: types.Message):
         "дождь <N> — раздать до 5 случайным",
         "ставлю <N> на 🎲/кубик | 🎯/дартс | 🎳/боулинг | 🎰/автоматы — ставка в игру",
         "рынок — витрина товаров и лотов",
-        "купить эмеральд / купить перк <код> / купить <offer_id>",
+        "купить эмеральд / купить перк <код> / купить лот <offer_id>",
         "выставить <ссылка> <цена> / снять лот <offer_id>",
         "мои перки / перки (reply)",
         "получить зп — ежедневная выплата по перку",
