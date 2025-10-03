@@ -1151,15 +1151,23 @@ async def handle_buy_perk(message: types.Message, code: str):
     if code not in PERK_REGISTRY:
         await message.reply("Такого перка нет.")
         return
+
+    perks = await get_perks(buyer_id)
+    if code in perks:
+        await message.reply("У вас уже есть этот перк. Повторно купить нельзя.")
+        return
+        
     price = await get_price_perk(code)
     if price is None:
         await message.reply("Этот перк сейчас не продаётся.")
         return
+
     buyer_id = message.from_user.id
     bal = await get_balance(buyer_id)
     if price > bal:
         await message.reply(f"Недостаточно нуаров. Требуется {fmt_money(price)}, на руках {fmt_money(bal)}.")
         return
+
     burn = await _apply_burn_and_return(price)
     # списываем у покупателя
     await change_balance(buyer_id, -price, f"покупка перка {code}", buyer_id)
