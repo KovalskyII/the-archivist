@@ -398,7 +398,7 @@ async def handle_rating(message: types.Message):
     if not rows:
         await message.reply("Ни у кого в клубе нет нуаров.")
         return
-    lines = ["💰 Богатейшие члены клуба Le Cadeau Noir:\n"]
+    lines = ["💰 <b>Богатейшие члены Клуба Le Cadeau Noir:</b>\n\n"]
     for i, (user_id, balance) in enumerate(rows, start=1):
         name = "Участник"
         try:
@@ -406,7 +406,7 @@ async def handle_rating(message: types.Message):
             name = member.user.full_name or name
         except Exception:
             pass
-        lines.append(f"{i}. {mention_html(user_id, name)} — {balance} нуаров")
+        lines.append(f"{i}. {mention_html(user_id, name)} — {fmt_money(balance)}")
     await message.reply("\n".join(lines), parse_mode="HTML")
 
 async def handle_club_members(message: types.Message):
@@ -414,7 +414,7 @@ async def handle_club_members(message: types.Message):
     if not rows:
         await message.reply("Пока что в клубе пусто.")
         return
-    lines = ["🎭 <b>Члены клуба:</b>\n"]
+    lines = ["🎭 <b>Члены Клуба Le Cadeau Noir:</b>\n"]
     for user_id, role in rows:
         name = "Участник"
         try:
@@ -1156,7 +1156,7 @@ async def handle_buy_perk(message: types.Message, code: str):
     if code in perks:
         await message.reply("У вас уже есть этот перк. Повторно купить нельзя.")
         return
-        
+
     price = await get_price_perk(code)
     if price is None:
         await message.reply("Этот перк сейчас не продаётся.")
