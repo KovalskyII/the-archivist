@@ -1242,7 +1242,7 @@ async def handle_vault_stats(message: types.Message):
     txt = (
         "🏦 <b>ЭКОНОМИКА КЛУБА</b>\n"
         f"🧱 <b>КАП:</b> {cap_s}\n\n"
-        f"🟣 <b>Текущий саплай:</b> {supply_s}\n\n" 
+        f"🪙 <b>Текущий саплай:</b> {supply_s}\n\n" 
         f"🔐 <b>В сейфе:</b> {vault_s}\n\n"
         f"🔄 <b>На руках:</b> {circulating_s}\n\n"
         f"🔥 <b>Сожжено:</b> {burned_s} ({burned_pct:.2f}%)\n\n"
