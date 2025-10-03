@@ -1223,11 +1223,6 @@ async def handle_vault_reset(message: types.Message):
         return
     await message.reply(f"Сейф перезапущен. Кап: {fmt_int(cap)}. В обороте: {fmt_int(circulating)}. Остальное заложено в сейф.")
 
-def _bar(pct: float, width: int = 12) -> str:
-    """Текстовая полоска прогресса: ███░░░"""
-    pct = max(0.0, min(100.0, pct))
-    filled = int(round(pct * width / 100))
-    return "█" * filled + "░" * (width - filled)
 
 async def handle_vault_stats(message: types.Message):
     stats = await get_economy_stats()
@@ -1239,13 +1234,15 @@ async def handle_vault_stats(message: types.Message):
     circulating_s  = fmt_int(stats["circulating"])
     burned_s       = fmt_int(stats["burned"])
     vault_s        = fmt_int(stats["vault"])
+    supply_s       = fmt_int(stats["supply"])
     income_s       = fmt_int(stats["income"])  # это размер «зп/кражи» в нуарах
     bps_pct        = fmt_percent_bps(stats["burn_bps"])
     burned_pct     = (stats["burned"] / stats["cap"] * 100) if stats["cap"] > 0 else 0.0
 
     txt = (
-        "🏦 <b>ЭКОНОМИКА КЛУБА</b>\n\n"
-        f"🧱 <b>Кап:</b> {cap_s}\n\n"
+        "🏦 <b>ЭКОНОМИКА КЛУБА</b>\n"
+        f"🧱 <b>КАП:</b> {cap_s}\n\n"
+        f"🟣 <b>Текущий саплай:</b> {supply_s}\n\n" 
         f"🔐 <b>В сейфе:</b> {vault_s}\n\n"
         f"🔄 <b>На руках:</b> {circulating_s}\n\n"
         f"🔥 <b>Сожжено:</b> {burned_s} ({burned_pct:.2f}%)\n\n"

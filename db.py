@@ -507,6 +507,11 @@ async def get_economy_stats() -> Optional[Dict[str, Any]]:
     vault = cap - burned - circulating
     if vault < 0:
         vault = 0
+
+    supply = cap - burned
+    if supply < 0:
+        supply = 0
+
     bps = await get_burn_bps()
     income = await get_income()
     return {
@@ -514,6 +519,7 @@ async def get_economy_stats() -> Optional[Dict[str, Any]]:
         "burned": burned,
         "circulating": circulating,
         "vault": vault,
+        "supply": supply,
         "burn_bps": bps,
         "income": income,
     }
