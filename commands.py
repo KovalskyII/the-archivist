@@ -1572,7 +1572,7 @@ async def handle_commands_catalog(message: types.Message):
         "💳 <b>Платные команды</b>\n" + bullets(paid)
     )
     # ВАЖНО: без parse_mode
-    await message.reply(txt)
+    await message.reply(txt, parse_mode="HTML")
 
 # --------- ГЕРОЙ ДНЯ ---------
 
