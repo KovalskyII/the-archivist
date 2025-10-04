@@ -19,7 +19,8 @@ from db import (
     hero_has_claimed_today, hero_record_claim,
     get_stipend_base, get_stipend_bonus,
     get_generosity_mult_pct, add_generosity_points, generosity_try_payout,
-    get_market_turnover_days, codeword_get_active, codeword_mark_win
+    get_market_turnover_days, codeword_get_active, codeword_mark_win,
+    handle_hero_concert, handle_hero_of_day,
 
 
 
@@ -65,9 +66,9 @@ def get_bet_lock(uid: int) -> asyncio.Lock:
 
 # Код перка -> (эмоджи, человекочитаемое название)
 PERK_REGISTRY = {
-    "иммунитет": ("🛡️", "Иммунитет к бану(одноразовый)"),
+    "иммунитет": ("🛡️", "Иммунитет к бану"),
     "надбавка": ("💼", "Надбавка к жалованию"),
-    "вор": ("🗡️", "Своровать нуары (раз в 24 часа)"),
+    "вор": ("🗡️", "Своровать нуары"),
 }
 
 def mention_html(user_id: int, fallback: str = "Участник") -> str:
@@ -331,12 +332,10 @@ async def handle_message(message: types.Message):
         return
 
     if text_l == "концерт":
-        from commands import handle_hero_of_day
         await handle_hero_of_day(message)
         return
 
     if text_l == "выступить":
-        from commands import handle_hero_concert
         await handle_hero_concert(message)
         return
 
@@ -344,7 +343,6 @@ async def handle_message(message: types.Message):
         await _pin_paid(message, loud=False); return
     if text_l == "закрепить пост громко":
         await _pin_paid(message, loud=True); return
-
 
 
     # ======= Команды с ключом =======
@@ -451,7 +449,7 @@ async def handle_message(message: types.Message):
             try:
                 await message.bot.send_message(
                     CLUB_CHAT_ID,
-                    f"🧩 Начинается викторина КОД-СЛОВО!\nУгадайте слово загадонное Куратором и получите {fmt_money(prize)}."
+                    f"🧩 Начинается викторина КОД-СЛОВО!\nУгадайте слово, загаданное Куратором и получите {fmt_money(prize)}."
                 )
             except Exception:
                 pass
@@ -620,12 +618,12 @@ async def handle_vruchit(message: types.Message):
         await message.reply("Сейф ещё не включён. Команда: 'включить сейф <CAP>' (для куратора).")
         return
     if amount > room:
-        await message.reply(f"В сейфе недостаточно нуаров. Доступно: {room}")
+        await message.reply(f"В сейфе недостаточно нуаров. Доступно: {fmt_money(room)}")
         return
 
     recipient = message.reply_to_message.from_user
     await change_balance(recipient.id, amount, "выдача из сейфа", message.from_user.id)
-    await message.reply(f"🧮Я выдал {amount} нуаров {mention_html(recipient.id, recipient.full_name)}", parse_mode="HTML")
+    await message.reply(f"🧮Я выдал {fmt_money(amount)} нуаров {mention_html(recipient.id, recipient.full_name)}", parse_mode="HTML")
 
 async def handle_otnyat(message: types.Message, text: str, author_id: int):
     if not message.reply_to_message:
@@ -642,10 +640,10 @@ async def handle_otnyat(message: types.Message, text: str, author_id: int):
     recipient = message.reply_to_message.from_user
     current_balance = await get_balance(recipient.id)
     if amount > current_balance:
-        await message.reply(f"У {recipient.full_name} нет такого количества нуаров. Баланс: {current_balance}")
+        await message.reply(f"У {html.escape(recipient.full_name)} нет такого количества нуаров. Баланс: {fmt_money(current_balance)}")
         return
     await change_balance(recipient.id, -amount, "взыскание в сейф", author_id)
-    await message.reply(f"🧮Я взыскал {amount} нуаров у {mention_html(recipient.id, recipient.full_name)}", parse_mode="HTML")
+    await message.reply(f"🧮Я взыскал {fmt_money(amount)} нуаров у {mention_html(recipient.id, recipient.full_name)}", parse_mode="HTML")
 
 async def handle_peredat(message: types.Message):
     if not message.reply_to_message:
@@ -667,7 +665,7 @@ async def handle_peredat(message: types.Message):
         return
     balance = await get_balance(giver_id)
     if amount > balance:
-        await message.reply(f"У Вас недостаточно нуаров. Баланс: {balance}")
+        await message.reply(f"У Вас недостаточно нуаров. Баланс: {fmt_money(balance)}")
         return
     await change_balance(giver_id, -amount, "передача", giver_id)
     await change_balance(recipient_id, amount, "передача", giver_id)
@@ -675,7 +673,7 @@ async def handle_peredat(message: types.Message):
     pts = (amount * pct) // 100
     await add_generosity_points(giver_id, pts, "transfer")
     payout = await generosity_try_payout(giver_id)
-        if payout > 0:
+    if payout > 0:
         await message.reply(f"🎁 Бонус щедрости: +{fmt_money(payout)}")
     await message.reply(
         f"💸Я передал {amount} нуаров от {mention_html(giver_id, message.from_user.full_name)} к {mention_html(recipient_id, recipient.full_name)}",
@@ -701,7 +699,7 @@ async def handle_dozhd(message: types.Message):
     giver_id = message.from_user.id
     bal = await get_balance(giver_id)
     if total > bal:
-        await message.reply(f"У Вас недостаточно нуаров. Баланс: {bal}")
+        await message.reply(f"У Вас недостаточно нуаров. Баланс: {fmt_money(bal)}")
         return
     candidate_ids = [uid for uid in await get_known_users() if uid != giver_id]
     eligible = []
@@ -757,13 +755,13 @@ async def _precheck_and_reserve_bet(message: types.Message, amount: int, game_ta
     # лимит ставки
     max_bet = await get_limit_bet()
     if max_bet and amount > max_bet:
-        await message.reply(f"Лимит ставки: не более {max_bet}.")
+        await message.reply(f"Лимит ставки: не более {fmt_money(max_bet)}.")
         return False
 
     gambler_id = message.from_user.id
     balance = await get_balance(gambler_id)
     if amount > balance:
-        await message.reply(f"🔍У Вас недостаточно нуаров. Баланс: {balance}")
+        await message.reply(f"🔍У Вас недостаточно нуаров. Баланс: {fmt_money(balance)}")
         return False
 
     # проверка сейфа на потенциальную выплату
@@ -874,7 +872,7 @@ async def handle_darts(message: types.Message):
             )
 
 async def handle_bowling(message: types.Message):
-    m = re.match(r"^\s*ставлю\s+(\d+)\с+на\s+(?:🎳|боулинг)\s*$", message.text.strip(), re.IGNORECASE)
+    m = re.match(r"^\s*ставлю\s+(\d+)\s+на\s+(?:🎳|боулинг)\s*$", message.text.strip(), re.IGNORECASE)
     if not m:
         await message.reply("Пример: «ставлю 10 на 🎳|боулинг»")
         return
@@ -1159,8 +1157,8 @@ async def handle_market_show(message: types.Message):
         # для витрины убираем приписки в скобках только визуально
         title_base = title.split(" (", 1)[0]
 
-        if code == "зп":
-            usage = "«получить зп»"
+        if code == "надбавка":
+            usage = "автоматическая прибавка при использовании «получить жалование»"
         elif code == "вор":
             usage = "«украсть» / «своровать» (reply)"
         elif code == "иммунитет":
@@ -1334,7 +1332,7 @@ async def handle_buy_perk(message: types.Message, code: str):
     if code not in PERK_REGISTRY:
         await message.reply("Такого перка нет.")
         return
-
+    buyer_id = message.from_user.id
     perks = await get_perks(buyer_id)
     if code in perks:
         await message.reply("У вас уже есть этот перк. Повторно купить нельзя.")
@@ -1345,7 +1343,7 @@ async def handle_buy_perk(message: types.Message, code: str):
         await message.reply("Этот перк сейчас не продаётся.")
         return
 
-    buyer_id = message.from_user.id
+    
     bal = await get_balance(buyer_id)
     if price > bal:
         await message.reply(f"Недостаточно нуаров. Требуется {fmt_money(price)}, на руках {fmt_money(bal)}.")
@@ -1425,6 +1423,7 @@ async def handle_vault_stats(message: types.Message):
     circulating_s  = fmt_int(stats["circulating"])
     burned_s       = fmt_int(stats["burned"])
     vault_s        = fmt_int(stats["vault"])
+    supply_val = stats.get("supply", stats["cap"] - stats["burned"])
     supply_s       = fmt_int(stats["supply"])
     income_s       = fmt_int(stats["income"])  # это размер «зп/кражи» в нуарах
     bps_pct        = fmt_percent_bps(stats["burn_bps"])
@@ -1452,7 +1451,7 @@ async def handle_burn_bps_set(message: types.Message, v: int):
 
 async def handle_price_emerald_set(message: types.Message, v: int):
     await set_price_emerald(v)
-    await message.reply(f"Цена эмеральда: {v} нуаров.")
+    await message.reply(f"Цена эмеральда: {fmt_money(v)}.")
 
 async def handle_price_perk_set(message: types.Message, code: str, v: int):
     code = code.strip().lower()
@@ -1460,7 +1459,7 @@ async def handle_price_perk_set(message: types.Message, code: str, v: int):
         await message.reply("Такого перка нет.")
         return
     await set_price_perk(code, v)
-    await message.reply(f"Цена перка «{PERK_REGISTRY[code][1]}»: {v} нуаров.")
+    await message.reply(f"Цена перка «{PERK_REGISTRY[code][1]}»: {fmt_money(v)}.")
 
 async def handle_multiplier_set(message: types.Message, game: str, x: int):
     await set_multiplier(game, x)
@@ -1529,10 +1528,10 @@ async def handle_commands_catalog(message: types.Message):
         "обнулить баланс (reply) / обнулить балансы / обнулить клуб",
         "щедрость множитель <p> — множитель очков щедрости (в % от переводов/дождей)",
         "щедрость награда <N> — порог очков для автопремии (равной N нуарам)",
-        "цена пост <N> — стоимость утилиты «повесить пост»"
-        "цена пост громкий <N> — стоимость утилиты «повесить громкий пост»"
-        "установить код <слово> <сумма> — запустить игру «КОД-СЛОВО» в чате клуба"
-        "отменить код — остановить текущую игру «КОД-СЛОВО»"
+        "цена пост <N> — стоимость утилиты «повесить пост»",
+        "цена пост громкий <N> — стоимость утилиты «повесить громкий пост»",
+        "установить код <слово> <сумма> — запустить игру «КОД-СЛОВО» в чате клуба",
+        "отменить код — остановить текущую игру «КОД-СЛОВО»",
     ]
     keyholders = [
         "вручить <N> (reply) — выдать из сейфа",
@@ -1558,9 +1557,9 @@ async def handle_commands_catalog(message: types.Message):
         "украсть / своровать (reply) — кража по перку «вор»",
         "сейф — сводка экономики клуба",
         "концерт - раз в день выбирает Героя Дня",
-        "выступить - команда Героя Дня, разовый гонорар"
-        "концерт — выбрать «героя дня» или показать текущего"
-        "выступить — бонус героя дня"
+        "выступить - команда Героя Дня, разовый гонорар",
+        "концерт — выбрать «героя дня» или показать текущего",
+        "выступить — бонус героя дня",
     ]
     paid = [
     "повесить пост (reply) — закрепить выбранное сообщение (стоимость в сейф)",
@@ -1656,7 +1655,7 @@ async def handle_hero_concert(message: types.Message):
 
     await message.reply(
         "🎤 Это было грандиозно! Концерт почти затмил Битлз.\n"
-        f"Зрители в переходе ликовали и накидали вам {reward} нуаров в шапку.",
+        f"Зрители в переходе ликовали и накидали вам {fmt_money(reward)} нуаров в шапку.",
     )
 
 async def _pin_paid(message: types.Message, loud: bool):
