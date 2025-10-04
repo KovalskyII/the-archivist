@@ -22,9 +22,6 @@ from db import (
     get_market_turnover_days, codeword_get_active, codeword_mark_win,
     
 
-
-
-
     # анти-дубль
     is_msg_processed, mark_msg_processed,
 
@@ -1568,11 +1565,11 @@ async def handle_commands_catalog(message: types.Message):
     ]
 
     txt = (
-        "📜 Список команд\n\n"
-        "👑 Куратор\n" + bullets(curator) + "\n\n"
-        "🗝 Владельцы ключа\n" + bullets(keyholders) + "\n\n"
-        "🎭 Члены клуба\n" + bullets(members) + "\n\n"
-        "💳 Платные команды\n" + bullets(paid)
+        "📜 <b>СПИСОК КОМАНД</b>\n\n"
+        "👑 <b>Куратор</b>\n" + bullets(curator) + "\n\n"
+        "🗝 <b>Владельцы ключа</b>\n" + bullets(keyholders) + "\n\n"
+        "🎭 <b>Члены клуба</b>\n" + bullets(members) + "\n\n"
+        "💳 <b>Платные команды</b>\n" + bullets(paid)
     )
     # ВАЖНО: без parse_mode
     await message.reply(txt)
