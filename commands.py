@@ -20,7 +20,7 @@ from db import (
     get_stipend_base, get_stipend_bonus,
     get_generosity_mult_pct, add_generosity_points, generosity_try_payout,
     get_market_turnover_days, codeword_get_active, codeword_mark_win,
-    
+    codeword_set, codeword_cancel_active,
 
     # анти-дубль
     is_msg_processed, mark_msg_processed,
@@ -46,7 +46,7 @@ from db import (
 )
 
 KURATOR_ID = 164059195
-CLUB_CHAT_ID = 2431055065
+CLUB_CHAT_ID = -1001234567890
 
 DB_PATH = "/data/bot_data.sqlite"
 
@@ -438,7 +438,6 @@ async def handle_message(message: types.Message):
         if m and author_id == KURATOR_ID:
             word = m.group(1)
             prize = int(m.group(2))
-            from db import codeword_get_active, codeword_set
             cur = await codeword_get_active(CLUB_CHAT_ID)
             if cur:
                 await message.reply("Уже запущена игра КОД-СЛОВО. Сначала отмените текущую.")
@@ -455,7 +454,6 @@ async def handle_message(message: types.Message):
             return
 
         if text_l == "отменить код" and author_id == KURATOR_ID:
-            from db import codeword_cancel_active
             ok = await codeword_cancel_active(CLUB_CHAT_ID if message.chat.type == 'private' else message.chat.id, KURATOR_ID)
             await message.reply("Игра отменена." if ok else "Активной игры нет.")
             return
