@@ -20,7 +20,8 @@ from db import (
     get_stipend_base, get_stipend_bonus,
     get_generosity_mult_pct, add_generosity_points, generosity_try_payout,
     get_market_turnover_days, codeword_get_active, codeword_mark_win,
-    handle_hero_concert, handle_hero_of_day,
+    
+
 
 
 
