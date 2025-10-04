@@ -15,7 +15,13 @@ from db import (
     grant_key, revoke_key, has_key, get_last_history,
     get_top_users, get_all_roles, reset_user_balance,
     reset_all_balances, set_role_image, get_role_with_image,
-    get_key_holders, get_known_users,
+    get_key_holders, get_known_users, hero_get_current, hero_set_for_today,
+    hero_has_claimed_today, hero_record_claim,
+    get_stipend_base, get_stipend_bonus,
+    get_generosity_mult_pct, add_generosity_points, generosity_try_payout,
+    get_market_turnover_days, codeword_get_active, codeword_mark_win
+
+
 
     # анти-дубль
     is_msg_processed, mark_msg_processed,
@@ -41,7 +47,14 @@ from db import (
 )
 
 KURATOR_ID = 164059195
+CLUB_CHAT_ID = -1001234567890  # <-- Поставь свой chat_id
+
 DB_PATH = "/data/bot_data.sqlite"
+
+# --- Герой дня (концерт) ---
+HERO_CONCERT_MIN = 10
+HERO_CONCERT_MAX = 50
+HERO_TITLE = "Певец дня"  # название титула
 
 BET_LOCKS: dict[int, asyncio.Lock] = {}
 def get_bet_lock(uid: int) -> asyncio.Lock:
@@ -53,7 +66,7 @@ def get_bet_lock(uid: int) -> asyncio.Lock:
 # Код перка -> (эмоджи, человекочитаемое название)
 PERK_REGISTRY = {
     "иммунитет": ("🛡️", "Иммунитет к бану(одноразовый)"),
-    "зп": ("💵", "Зарплата (раз в 24 часа)"),
+    "надбавка": ("💼", "Надбавка к жалованию"),
     "вор": ("🗡️", "Своровать нуары (раз в 24 часа)"),
 }
 
@@ -108,6 +121,25 @@ async def handle_message(message: types.Message):
 
     if message.from_user.is_bot:
         return
+
+    # --- ловушка для код-слова (только в целевом чате) ---
+    if message.chat.id == CLUB_CHAT_ID and message.text:
+        from db import codeword_get_active, codeword_mark_win
+        cw = await codeword_get_active(CLUB_CHAT_ID)
+        if cw:
+            guess = message.text.strip().lower()
+            if guess == cw["word"]:
+                # платим победителю
+                prize = int(cw["prize"])
+                await change_balance(message.from_user.id, prize, "codeword_prize", message.from_user.id)
+                await codeword_mark_win(CLUB_CHAT_ID, message.from_user.id, prize, cw["word"])
+                await message.reply(
+                    f"🎉 Слово угадано! Конечно же это — <b>{html.escape(cw['word'])}</b>.\n"
+                    f"Ты получаешь: {fmt_money(prize)}.",
+                    parse_mode="HTML"
+                )
+                return
+
 
     # ======= Команды для всех =======
     t = message.text.lower().strip().split("@", 1)[0]
@@ -186,9 +218,10 @@ async def handle_message(message: types.Message):
         await handle_perks_of(message)
         return
 
-    if text_l == "получить зп":
-        await handle_salary_claim(message)
+    if text_l == "получить жалование":
+        await handle_stipend_claim(message)
         return
+
 
     if text_l.startswith("дождь "):
         await handle_dozhd(message)
@@ -297,6 +330,23 @@ async def handle_message(message: types.Message):
         await handle_perk_registry(message)
         return
 
+    if text_l == "концерт":
+        from commands import handle_hero_of_day
+        await handle_hero_of_day(message)
+        return
+
+    if text_l == "выступить":
+        from commands import handle_hero_concert
+        await handle_hero_concert(message)
+        return
+
+    if text_l == "закрепить пост":
+        await _pin_paid(message, loud=False); return
+    if text_l == "закрепить пост громко":
+        await _pin_paid(message, loud=True); return
+
+
+
     # ======= Команды с ключом =======
     user_has_key = (author_id == KURATOR_ID) or await has_key(author_id)
 
@@ -345,6 +395,75 @@ async def handle_message(message: types.Message):
             if code in PERK_REGISTRY:
                 await handle_revoke_perk_universal(message, code)
                 return
+
+        m = re.match(r"^жалование\s+база\s+(\d+)$", text_l)
+        if m and author_id == KURATOR_ID:
+            from db import set_stipend_base
+            await set_stipend_base(int(m.group(1)))
+            await message.reply("Базовое жалование обновлено.")
+            return
+
+        m = re.match(r"^жалование\s+надбавка\s+(\d+)$", text_l)
+        if m and author_id == KURATOR_ID:
+            from db import set_stipend_bonus
+            await set_stipend_bonus(int(m.group(1)))
+            await message.reply("Надбавка к жалованию обновлена.")
+            return
+
+        m = re.match(r"^щедрость\s+множитель\s+(\d+)$", text_l)
+        if m and author_id == KURATOR_ID:
+            from db import set_generosity_mult_pct
+            await set_generosity_mult_pct(int(m.group(1)))
+            await message.reply("Множитель щедрости сохранён.")
+            return
+
+        m = re.match(r"^щедрость\s+награда\s+(\d+)$", text_l)
+        if m and author_id == KURATOR_ID:
+            from db import set_generosity_threshold
+            await set_generosity_threshold(int(m.group(1)))
+            await message.reply("Порог награды щедрости сохранён.")
+            return
+
+        m = re.match(r"^цена\s+пост\s+(\d+)$", text_l)
+        if m and author_id == KURATOR_ID:
+            from db import set_price_pin
+            await set_price_pin(int(m.group(1)))
+            await message.reply("Цена «повесить пост» обновлена.")
+            return
+
+        m = re.match(r"^цена\s+громкий\s+пост\s+(\d+)$", text_l)
+        if m and author_id == KURATOR_ID:
+            from db import set_price_pin_loud
+            await set_price_pin_loud(int(m.group(1)))
+            await message.reply("Цена «повесить громко» обновлена.")
+            return
+
+        m = re.match(r"^установить\s+код\s+(\S+)\s+(\d+)$", text_l)
+        if m and author_id == KURATOR_ID:
+            word = m.group(1)
+            prize = int(m.group(2))
+            from db import codeword_get_active, codeword_set
+            cur = await codeword_get_active(CLUB_CHAT_ID)
+            if cur:
+                await message.reply("Уже запущена игра КОД-СЛОВО. Сначала отмените текущую.")
+                return
+            await codeword_set(CLUB_CHAT_ID, word.lower(), prize, KURATOR_ID)
+            try:
+                await message.bot.send_message(
+                    CLUB_CHAT_ID,
+                    f"🧩 Начинается викторина КОД-СЛОВО!\nУгадайте слово загадонное Куратором и получите {fmt_money(prize)}."
+                )
+            except Exception:
+                pass
+            await message.reply("Код установлен и объявлен в чате.")
+            return
+
+        if text_l == "отменить код" and author_id == KURATOR_ID:
+            from db import codeword_cancel_active
+            ok = await codeword_cancel_active(CLUB_CHAT_ID if message.chat.type == 'private' else message.chat.id, KURATOR_ID)
+            await message.reply("Игра отменена." if ok else "Активной игры нет.")
+            return
+
 
 # ---------- базовые куски (ролы, фото, рейтинги и т.п.) ----------
 
@@ -552,6 +671,12 @@ async def handle_peredat(message: types.Message):
         return
     await change_balance(giver_id, -amount, "передача", giver_id)
     await change_balance(recipient_id, amount, "передача", giver_id)
+    pct = await get_generosity_mult_pct()
+    pts = (amount * pct) // 100
+    await add_generosity_points(giver_id, pts, "transfer")
+    payout = await generosity_try_payout(giver_id)
+        if payout > 0:
+        await message.reply(f"🎁 Бонус щедрости: +{fmt_money(payout)}")
     await message.reply(
         f"💸Я передал {amount} нуаров от {mention_html(giver_id, message.from_user.full_name)} к {mention_html(recipient_id, recipient.full_name)}",
         parse_mode="HTML"
@@ -608,6 +733,12 @@ async def handle_dozhd(message: types.Message):
         f"{mention_html(uid, name)} — намок на {fmt_money(amt)}"
         for (uid, name), amt in zip(recipients, per_user) if amt > 0
     ]
+    pct = await get_generosity_mult_pct()
+    pts = (total * pct) // 100
+    await add_generosity_points(giver_id, pts, "rain")
+    payout = await generosity_try_payout(giver_id)
+    if payout > 0:
+        await message.reply(f"🎁 Бонус щедрости: +{fmt_money(payout)}")
     await message.reply("🌧 Прошёл дождь. Намокли: " + ", ".join(breakdown), parse_mode="HTML")
 
 # ------------- игры (пока только кубик, остальные готовы к добавлению) -------------
@@ -930,32 +1061,45 @@ async def handle_perk_registry(message: types.Message):
     await message.reply("\n".join(lines))
 
 
-async def handle_salary_claim(message: types.Message):
+async def handle_stipend_claim(message: types.Message):
     user_id = message.from_user.id
-    perks = await get_perks(user_id)
-    if "зп" not in perks:
-        await message.reply("У Вас нет такой привилегии.")
-        return
-    seconds = await get_seconds_since_last_salary_claim(user_id, "зп")
+
+    # кулдаун 24ч на жалование — используем те же функции, но с иным reason
+    seconds = await get_seconds_since_last_salary_claim(user_id, "жалование")
     COOLDOWN = 24 * 60 * 60
     if seconds is not None and seconds < COOLDOWN:
         remain = COOLDOWN - seconds
         hours = remain // 3600
         minutes = (remain % 3600) // 60
-        await message.reply(f"Зарплата уже получена. Повторно — через {hours}ч {minutes}м.")
+        await message.reply(f"Жалование уже получено. Повторно — через {hours}ч {minutes}м.")
         return
-    income = await get_income()
+
+    # считаем размер: база + (если есть перк «надбавка», добавляем бонус)
+    from db import get_stipend_base, get_stipend_bonus, get_perks
+    base = await get_stipend_base()
+    bonus = 0
+    perks = await get_perks(user_id)
+    if "надбавка" in perks:
+        bonus = await get_stipend_bonus()
+
+    total = base + bonus
     # проверка сейфа
     room = await _get_vault_room()
     if room == -1:
         await message.reply("Сейф ещё не включён.")
         return
-    if income > room:
-        await message.reply("В сейфе недостаточно нуаров для выплаты «зп».")
+    if total > room:
+        await message.reply("В сейфе недостаточно нуаров для жалования.")
         return
-    await record_salary_claim(user_id, income, "зп")
-    await change_balance(user_id, income, "зп", user_id)
-    await message.reply(f"💵 Начислено {fmt_money(income)} по перку «Зарплата».")    
+
+    # запись КД (используем reason='жалование'), начисление
+    await record_salary_claim(user_id, total, "жалование")
+    await change_balance(user_id, total, "жалование", user_id)
+
+    if bonus > 0:
+        await message.reply(f"💼 Выплачено жалование: {fmt_money(total)} (включая надбавку {fmt_money(bonus)}).")
+    else:
+        await message.reply(f"💼 Выплачено жалование: {fmt_money(total)}.")
 
 async def handle_theft(message: types.Message):
     thief_id = message.from_user.id
@@ -1000,6 +1144,10 @@ async def handle_theft(message: types.Message):
 async def handle_market_show(message: types.Message):
     price_emerald = await get_price_emerald()
     burn_bps = await get_burn_bps()
+
+    t24  = await get_market_turnover_days(1)
+    t7   = await get_market_turnover_days(7)
+    t30  = await get_market_turnover_days(30)
 
     # ===== Перки =====
     # Перки
@@ -1052,6 +1200,8 @@ async def handle_market_show(message: types.Message):
             f"Команда покупки: купить лот {offer_id}"
         )
 
+    turnover_line = f"📈 Оборот: 24ч — {fmt_money(t24)}, 7д — {fmt_money(t7)}, 30д — {fmt_money(t30)}"
+
     txt = (
         "🛒 <b>РЫНОК</b>\n\n"
         f"💎 Эмеральд: {fmt_money(price_emerald)}\n"
@@ -1061,7 +1211,8 @@ async def handle_market_show(message: types.Message):
         "\n\n"
         "📦 <b>ЛОТЫ УЧАСТНИКОВ</b>\n" +
         ("\n\n".join(offer_blocks) if offer_blocks else "Пока нет активных лотов.") +
-        "\n\n"
+        "\n\n" +
+        turnover_line + "\n" +
         f"🔥 Сжигание на рынке(налог): {fmt_percent_bps(burn_bps)} (округление вниз)"
     )
 
@@ -1376,6 +1527,12 @@ async def handle_commands_catalog(message: types.Message):
         "снять роль (reply) — лишить роли",
         "ключ от сейфа (reply) / снять ключ (reply)",
         "обнулить баланс (reply) / обнулить балансы / обнулить клуб",
+        "щедрость множитель <p> — множитель очков щедрости (в % от переводов/дождей)",
+        "щедрость награда <N> — порог очков для автопремии (равной N нуарам)",
+        "цена пост <N> — стоимость утилиты «повесить пост»"
+        "цена пост громкий <N> — стоимость утилиты «повесить громкий пост»"
+        "установить код <слово> <сумма> — запустить игру «КОД-СЛОВО» в чате клуба"
+        "отменить код — остановить текущую игру «КОД-СЛОВО»"
     ]
     keyholders = [
         "вручить <N> (reply) — выдать из сейфа",
@@ -1397,17 +1554,135 @@ async def handle_commands_catalog(message: types.Message):
         "выставить <ссылка> <цена> / снять лот <offer_id>",
         "мои перки - просмотр своих перков",
         "перки (reply) - просмотр перков другого участника Клуба",
-        "получить зп — ежедневная выплата по перку «зп»",
+        "получить жалование — базовая ежедневная выплата",
         "украсть / своровать (reply) — кража по перку «вор»",
         "сейф — сводка экономики клуба",
+        "концерт - раз в день выбирает Героя Дня",
+        "выступить - команда Героя Дня, разовый гонорар"
+        "концерт — выбрать «героя дня» или показать текущего"
+        "выступить — бонус героя дня"
+    ]
+    paid = [
+    "повесить пост (reply) — закрепить выбранное сообщение (стоимость в сейф)",
+    "повесить громкий пост (reply) — закрепить с уведомлением для всех (стоимость в сейф)",
     ]
 
     txt = (
         "📜 Список команд\n\n"
         "👑 Куратор\n" + bullets(curator) + "\n\n"
         "🗝 Владельцы ключа\n" + bullets(keyholders) + "\n\n"
-        "🎭 Члены клуба\n" + bullets(members)
+        "🎭 Члены клуба\n" + bullets(members) + "\n\n"
+        "💳 Платные команды\n" + bullets(paid)
     )
     # ВАЖНО: без parse_mode
     await message.reply(txt)
+
+# --------- ГЕРОЙ ДНЯ ---------
+
+async def handle_hero_of_day(message: types.Message):
+    chat_id = message.chat.id
+
+    # уже выбран сегодня?
+    current = await hero_get_current(chat_id)
+    if current is not None:
+        # покажем кто сегодня «Певец дня»
+        try:
+            member = await message.bot.get_chat_member(chat_id, current)
+            name = member.user.full_name or "Участник"
+        except Exception:
+            name = "Участник"
+        await message.reply(
+            f"🎤 Сегодня выступает — {mention_html(current, name)}.\n"
+            f"Команда для {HERO_TITLE.lower()}: «выступить».",
+            parse_mode="HTML"
+        )
+        return
+
+    # выбираем случайного участника (не бота, в чате, из известных)
+    candidates = []
+    for uid in await get_known_users():
+        try:
+            member = await message.bot.get_chat_member(chat_id, uid)
+            if getattr(member.user, "is_bot", False):
+                continue
+            if member.status in ("left", "kicked"):
+                continue
+            candidates.append(uid)
+        except Exception:
+            continue
+
+    if not candidates:
+        await message.reply("Пока не вижу участников на роль исполнителя.")
+        return
+
+    hero_id = random.choice(candidates)
+    await hero_set_for_today(chat_id, hero_id)
+
+    # тексты анонса (без пингов)
+    try:
+        member = await message.bot.get_chat_member(chat_id, hero_id)
+        hero_name = member.user.full_name or "Участник"
+    except Exception:
+        hero_name = "Участник"
+
+    await message.reply(
+        "🎪 Мы готовим большой концерт. Но нам нужен исполнитель.\n"
+        "Прошлый улетел в Дубай на скачки блох на кузнечиках…\n"
+        f"Кажется, {mention_html(hero_id, hero_name)} нам подойдёт!\n\n"
+        f"🏷 Титул на сегодня: <b>{HERO_TITLE}</b>\n"
+        "Команда для выступления: «выступить».",
+        parse_mode="HTML"
+    )
+
+async def handle_hero_concert(message: types.Message):
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+
+    current = await hero_get_current(chat_id)
+    if current is None:
+        await message.reply("Сегодня исполнитель ещё не выбран. Команда: «концерт».")
+        return
+    if current != user_id:
+        await message.reply("Вы не являетесь сегодняшним исполнителем.")
+        return
+
+    if await hero_has_claimed_today(chat_id, user_id):
+        await message.reply("Сегодня вы уже выступали. Завтра выступит кто-то другой.")
+        return
+
+    reward = random.randint(HERO_CONCERT_MIN, HERO_CONCERT_MAX)
+    await hero_record_claim(chat_id, user_id, reward)
+    await change_balance(user_id, reward, "выступить", user_id)
+
+    await message.reply(
+        "🎤 Это было грандиозно! Концерт почти затмил Битлз.\n"
+        f"Зрители в переходе ликовали и накидали вам {reward} нуаров в шапку.",
+    )
+
+async def _pin_paid(message: types.Message, loud: bool):
+    if not message.reply_to_message:
+        await message.reply("Нужно ответить на сообщение, которое хотите закрепить.")
+        return
+    from db import get_price_pin, get_price_pin_loud
+    price = await get_price_pin_loud() if loud else await get_price_pin()
+
+    user_id = message.from_user.id
+    bal = await get_balance(user_id)
+    if price > bal:
+        await message.reply(f"Не хватает нуаров. Цена: {fmt_money(price)}. На руках: {fmt_money(bal)}.")
+        return
+
+    # списываем (идёт в сейф; никому не начисляем)
+    await change_balance(user_id, -price, "util_pin" + ("_loud" if loud else ""), user_id)
+
+    # пин
+    try:
+        await message.bot.pin_chat_message(
+            chat_id=message.chat.id,
+            message_id=message.reply_to_message.message_id,
+            disable_notification=not loud  # тихий = True, громкий = False
+        )
+        await message.reply("Сообщение закреплено.")
+    except Exception as e:
+        await message.reply(f"Не удалось закрепить: {e}")
 

@@ -578,3 +578,232 @@ async def list_active_offers() -> List[Dict[str, Any]]:
             link = reason.split("link=", 1)[1]
         out.append({"offer_id": cid, "seller_id": seller, "price": int(price or 0), "link": link, "date": date})
     return out
+
+# ------- герой дня (через history) -------
+
+from datetime import datetime, timezone, timedelta
+
+def _utc_now():
+    return datetime.now(timezone.utc)
+
+def _iso_utc(dt: datetime) -> str:
+    return dt.astimezone(timezone.utc).isoformat()
+
+def _same_utc_day(a: datetime, b: datetime) -> bool:
+    return a.astimezone(timezone.utc).date() == b.astimezone(timezone.utc).date()
+
+async def set_hero_for_today(user_id: int, hours: int = 24) -> int:
+    """Назначить героя на ближайшие 'hours' (обычно 24ч). Возвращает id записи history."""
+    until = _utc_now() + timedelta(hours=hours)
+    reason = f"until={_iso_utc(until)}"
+    return await insert_history(user_id, "hero_set", None, reason)
+
+async def get_current_hero() -> tuple[int | None, datetime | None]:
+    """
+    Возвращает (user_id героя, until) если герой ещё актуален, иначе (None, None).
+    Берём последний hero_set и проверяем 'until' > now.
+    """
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("""
+            SELECT user_id, reason, date FROM history
+            WHERE action='hero_set'
+            ORDER BY id DESC LIMIT 1
+        """) as cur:
+            row = await cur.fetchone()
+    if not row:
+        return None, None
+
+    uid, reason, _date = row
+    until = None
+    try:
+        # reason: "until=ISO"
+        if reason and "until=" in reason:
+            until_iso = reason.split("until=", 1)[1].strip()
+            until = datetime.fromisoformat(until_iso)
+    except Exception:
+        until = None
+
+    if until and _utc_now() < until:
+        return uid, until
+    return None, None
+
+async def has_hero_claimed_today(user_id: int) -> bool:
+    """Проверяем, был ли уже 'hero_claim' сегодня (UTC)."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("""
+            SELECT date FROM history
+            WHERE user_id=? AND action='hero_claim'
+            ORDER BY id DESC LIMIT 1
+        """, (user_id,)) as cur:
+            row = await cur.fetchone()
+    if not row:
+        return False
+    try:
+        last = datetime.fromisoformat(row[0] + ("+00:00" if "Z" not in row[0] and "+" not in row[0] else ""))
+    except Exception:
+        return False
+    return _same_utc_day(_utc_now(), last)
+
+async def record_hero_claim(user_id: int, amount: int):
+    await insert_history(user_id, "hero_claim", amount, None)
+
+# ==== NEW: жалование/надбавка ====
+CFG_STIPEND_BASE   = "stipend_base"    # базовое жалование всем
+CFG_STIPEND_BONUS  = "stipend_bonus"   # надбавка по одноимённому перку
+
+async def get_stipend_base() -> int:
+    return await get_config_int(CFG_STIPEND_BASE, 5)
+
+async def set_stipend_base(v: int):
+    await set_config_int(CFG_STIPEND_BASE, max(0, v))
+
+async def get_stipend_bonus() -> int:
+    return await get_config_int(CFG_STIPEND_BONUS, 45)  # пример: база 5 + бонус 45 = 50
+
+async def set_stipend_bonus(v: int):
+    await set_config_int(CFG_STIPEND_BONUS, max(0, v))
+
+
+# ==== NEW: щедрость ====
+CFG_GEN_MULT_PCT = "generosity_mult_pct"   # проценты, 5 = 5%
+CFG_GEN_THRESHOLD = "generosity_threshold" # порог очков для выплаты
+
+async def get_generosity_mult_pct() -> int:
+    return await get_config_int(CFG_GEN_MULT_PCT, 5)
+
+async def set_generosity_mult_pct(v: int):
+    await set_config_int(CFG_GEN_MULT_PCT, max(0, v))
+
+async def get_generosity_threshold() -> int:
+    return await get_config_int(CFG_GEN_THRESHOLD, 50)
+
+async def set_generosity_threshold(v: int):
+    await set_config_int(CFG_GEN_THRESHOLD, max(1, v))
+
+async def add_generosity_points(user_id: int, pts: int, source: str):
+    # pts можно 0—тогда ничего страшного
+    if pts <= 0:
+        return
+    await insert_history(user_id, "generosity_add", pts, f"src={source}")
+
+async def get_generosity_points(user_id: int) -> int:
+    # сумма add - сумма списаний (выплат) в очках
+    import aiosqlite
+    total = 0
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("""
+            SELECT COALESCE(SUM(amount),0) FROM history
+            WHERE user_id=? AND action='generosity_add'
+        """,(user_id,)) as cur:
+            a = await cur.fetchone()
+            total += int(a[0] or 0)
+        async with db.execute("""
+            SELECT COALESCE(SUM(amount),0) FROM history
+            WHERE user_id=? AND action='generosity_pay_points'
+        """,(user_id,)) as cur:
+            b = await cur.fetchone()
+            total -= int(b[0] or 0)
+    return max(0, total)
+
+async def generosity_try_payout(user_id: int) -> int:
+    """
+    Если очки >= порога — списываем порог очков и выдаём столько же нуаров.
+    Возвращает размер выплаты (0 если не было).
+    """
+    points = await get_generosity_points(user_id)
+    threshold = await get_generosity_threshold()
+    if points < threshold:
+        return 0
+    # списываем порог очков
+    await insert_history(user_id, "generosity_pay_points", threshold, None)
+    # выдаём столько же нуаров из сейфа
+    await insert_history(user_id, "generosity_payout", threshold, None)
+    await change_balance(user_id, threshold, "щедрость", user_id)
+    return threshold
+
+
+# ==== NEW: платные утилиты-пины ====
+CFG_PRICE_PIN        = "price_util_pin"        # тихий пин
+CFG_PRICE_PIN_LOUD   = "price_util_pin_loud"   # громкий пин (с уведомлением)
+
+async def get_price_pin() -> int:
+    return await get_config_int(CFG_PRICE_PIN, 100)
+
+async def set_price_pin(v: int):
+    await set_config_int(CFG_PRICE_PIN, max(1, v))
+
+async def get_price_pin_loud() -> int:
+    return await get_config_int(CFG_PRICE_PIN_LOUD, 500)
+
+async def set_price_pin_loud(v: int):
+    await set_config_int(CFG_PRICE_PIN_LOUD, max(1, v))
+
+
+# ==== NEW: код-слово ====
+# Сохраняем "активную" игру код-слово через history
+# codeword_set: user_id=куратор, amount=приз, reason="chat_id=<id>;word=<w>;active=1"
+# codeword_win: user_id=победитель, amount=приз, reason="chat_id=<id>;word=<w>"
+# codeword_cancel: user_id=куратор, amount=NULL, reason="chat_id=<id>;word=<w>"
+
+async def codeword_set(chat_id: int, word: str, prize: int, curator_id: int):
+    return await insert_history(curator_id, "codeword_set", prize, f"chat_id={chat_id};word={word};active=1")
+
+async def codeword_cancel_active(chat_id: int, curator_id: int):
+    cw = await codeword_get_active(chat_id)
+    if not cw:
+        return False
+    word = cw["word"]
+    await insert_history(curator_id, "codeword_cancel", None, f"chat_id={chat_id};word={word}")
+    # снимаем флаг активной (записываем «деактивацию» отдельной записью)
+    await insert_history(curator_id, "codeword_set", cw["prize"], f"chat_id={chat_id};word={word};active=0")
+    return True
+
+async def codeword_get_active(chat_id: int):
+    # ищем последнюю запись set для заданного чата и проверяем её активность
+    import aiosqlite, re
+    last = None
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("""
+            SELECT id, user_id, amount, reason, date
+            FROM history WHERE action='codeword_set' AND reason LIKE ?
+            ORDER BY id DESC LIMIT 20
+        """, (f"%chat_id={chat_id}%",)) as cur:
+            rows = await cur.fetchall()
+    for rid, uid, amount, reason, date in rows:
+        # читаем word=...;active=x
+        word = None
+        active = None
+        for part in (reason or "").split(";"):
+            part = part.strip()
+            if part.startswith("word="):
+                word = part.split("=",1)[1]
+            elif part.startswith("active="):
+                try: active = int(part.split("=",1)[1])
+                except: active = None
+        if active == 1 and word:
+            last = {"id": rid, "curator_id": uid, "prize": int(amount or 0), "word": word, "date": date}
+            break
+        if active == 0:
+            break
+    return last
+
+async def codeword_mark_win(chat_id: int, winner_id: int, prize: int, word: str):
+    await insert_history(winner_id, "codeword_win", prize, f"chat_id={chat_id};word={word}")
+    # деактивируем
+    await insert_history(winner_id, "codeword_set", prize, f"chat_id={chat_id};word={word};active=0")
+
+
+# ==== NEW: обороты рынка ====
+# Суммируем суммы по событиям (perk_buy / emerald_buy / offer_sold) за окно в днях
+async def get_market_turnover_days(days: int) -> int:
+    import aiosqlite
+    total = 0
+    async with aiosqlite.connect(DB_PATH) as db:
+        for action in ("perk_buy", "emerald_buy", "offer_sold"):
+            async with db.execute(f"""
+                SELECT COALESCE(SUM(amount),0) FROM history
+                WHERE action='{action}' AND date >= datetime('now', ?)
+            """, (f'-{days} days',)) as cur:
+                row = await cur.fetchone()
+                total += int(row[0] or 0)
+    return total
