@@ -581,6 +581,7 @@ async def list_active_offers() -> List[Dict[str, Any]]:
 
 # ------- герой дня (через history) -------
 
+# ------- герой дня (покомнатно) -------
 from datetime import datetime, timezone, timedelta
 
 def _utc_now():
@@ -592,49 +593,51 @@ def _iso_utc(dt: datetime) -> str:
 def _same_utc_day(a: datetime, b: datetime) -> bool:
     return a.astimezone(timezone.utc).date() == b.astimezone(timezone.utc).date()
 
-async def set_hero_for_today(user_id: int, hours: int = 24) -> int:
-    """Назначить героя на ближайшие 'hours' (обычно 24ч). Возвращает id записи history."""
+async def hero_set_for_today(chat_id: int, user_id: int, hours: int = 24) -> int:
+    """
+    Назначить героя на чат chat_id на ближайшие 'hours' (обычно 24ч).
+    reason: "chat_id=<id>;until=<ISO>"
+    """
     until = _utc_now() + timedelta(hours=hours)
-    reason = f"until={_iso_utc(until)}"
+    reason = f"chat_id={chat_id};until={_iso_utc(until)}"
     return await insert_history(user_id, "hero_set", None, reason)
 
-async def get_current_hero() -> tuple[int | None, datetime | None]:
+async def hero_get_current(chat_id: int) -> int | None:
     """
-    Возвращает (user_id героя, until) если герой ещё актуален, иначе (None, None).
-    Берём последний hero_set и проверяем 'until' > now.
+    Вернёт user_id героя, если ещё актуален в данном чате, иначе None.
+    Берём последний hero_set для chat_id и проверяем until > now.
     """
     async with aiosqlite.connect(DB_PATH) as db:
         async with db.execute("""
-            SELECT user_id, reason, date FROM history
-            WHERE action='hero_set'
-            ORDER BY id DESC LIMIT 1
-        """) as cur:
-            row = await cur.fetchone()
-    if not row:
-        return None, None
+            SELECT user_id, reason FROM history
+            WHERE action='hero_set' AND reason LIKE ?
+            ORDER BY id DESC LIMIT 20
+        """, (f"%chat_id={chat_id}%",)) as cur:
+            rows = await cur.fetchall()
 
-    uid, reason, _date = row
-    until = None
-    try:
-        # reason: "until=ISO"
-        if reason and "until=" in reason:
-            until_iso = reason.split("until=", 1)[1].strip()
-            until = datetime.fromisoformat(until_iso)
-    except Exception:
+    now = _utc_now()
+    for uid, reason in rows:
         until = None
+        for part in (reason or "").split(";"):
+            p = part.strip()
+            if p.startswith("until="):
+                try:
+                    until = datetime.fromisoformat(p.split("=",1)[1])
+                except Exception:
+                    until = None
+        if until and now < until:
+            return int(uid)
+        # если встретили протухшую запись — продолжаем искать выше по истории
+    return None
 
-    if until and _utc_now() < until:
-        return uid, until
-    return None, None
-
-async def has_hero_claimed_today(user_id: int) -> bool:
-    """Проверяем, был ли уже 'hero_claim' сегодня (UTC)."""
+async def hero_has_claimed_today(chat_id: int, user_id: int) -> bool:
+    """Проверяем, был ли уже hero_claim сегодня в этом чате."""
     async with aiosqlite.connect(DB_PATH) as db:
         async with db.execute("""
             SELECT date FROM history
-            WHERE user_id=? AND action='hero_claim'
+            WHERE user_id=? AND action='hero_claim' AND reason LIKE ?
             ORDER BY id DESC LIMIT 1
-        """, (user_id,)) as cur:
+        """, (user_id, f"%chat_id={chat_id}%")) as cur:
             row = await cur.fetchone()
     if not row:
         return False
@@ -644,8 +647,10 @@ async def has_hero_claimed_today(user_id: int) -> bool:
         return False
     return _same_utc_day(_utc_now(), last)
 
-async def record_hero_claim(user_id: int, amount: int):
-    await insert_history(user_id, "hero_claim", amount, None)
+async def hero_record_claim(chat_id: int, user_id: int, amount: int):
+    """Фиксируем разовый гонорар героя дня в конкретном чате."""
+    await insert_history(user_id, "hero_claim", amount, f"chat_id={chat_id}")
+
 
 # ==== NEW: жалование/надбавка ====
 CFG_STIPEND_BASE   = "stipend_base"    # базовое жалование всем
