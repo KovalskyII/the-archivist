@@ -48,7 +48,7 @@ from db import (
 )
 
 KURATOR_ID = 164059195
-CLUB_CHAT_ID = 2431055065  # <-- Поставь свой chat_id
+CLUB_CHAT_ID = 2431055065
 
 DB_PATH = "/data/bot_data.sqlite"
 
