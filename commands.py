@@ -269,14 +269,6 @@ async def handle_message(message: types.Message):
         return
 
     # экономика/сейф
-    if text_l.startswith("включить сейф"):
-        await handle_vault_enable(message)
-        return
-
-    if text_l.startswith("перезапустить сейф"):
-        await handle_vault_reset(message)
-        return
-
     if text_l == "сейф":
         await handle_vault_stats(message)
         return
@@ -393,6 +385,14 @@ async def handle_message(message: types.Message):
             if code in PERK_REGISTRY:
                 await handle_revoke_perk_universal(message, code)
                 return
+
+        if text_l.startswith("включить сейф"):
+            await handle_vault_enable(message)
+            return
+
+        if text_l.startswith("перезапустить сейф"):
+            await handle_vault_reset(message)
+            return
 
         m = re.match(r"^жалование\s+база\s+(\d+)$", text_l)
         if m and author_id == KURATOR_ID:
