@@ -33,8 +33,12 @@ if AIOMAJOR >= 3:
     async def on_photo(message: Message):
         await handle_photo_command(message)
 
-    @router.message(F.text & ~F.from_user.is_bot)
+    @router.message()  # ← ловим все апдейты и фильтруем уже внутри
     async def on_text(message: Message):
+        if not getattr(message, "text", None):
+            return
+        if getattr(message.from_user, "is_bot", False):
+            return
         await handle_message(message)
 
     async def main():
@@ -49,6 +53,7 @@ if AIOMAJOR >= 3:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             loop.run_until_complete(main())
+
 
 else:
     # -------- aiogram v2 --------
