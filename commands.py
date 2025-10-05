@@ -460,6 +460,22 @@ async def handle_message(message: types.Message):
                 )
             return
 
+        if text_l == "отменить код" and author_id == KURATOR_ID:
+            # где отменяем: в ЛС — клубный чат, в группе — текущий чат
+            target_chat_id = CLUB_CHAT_ID if getattr(message.chat, "type", "") == "private" else message.chat.id
+
+            ok = await codeword_cancel_active(target_chat_id, KURATOR_ID)
+            if ok:
+                await message.reply("Игра отменена.")
+                # оповестим сам чат, где шла игра (тихо игнорируем ошибки)
+                try:
+                    await message.bot.send_message(target_chat_id, "🛑 Викторина КОД-СЛОВО остановлена.")
+                except Exception:
+                    pass
+            else:
+                await message.reply("Активной игры нет.")
+            return
+
 
 # ---------- базовые куски (ролы, фото, рейтинги и т.п.) ----------
 
