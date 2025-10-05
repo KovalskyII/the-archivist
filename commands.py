@@ -50,6 +50,7 @@ from db import (
 
 KURATOR_ID = 164059195
 CLUB_CHAT_ID = -1002431055065
+ALLOWED_CONCERT_CHATS = {CLUB_CHAT_ID}
 
 DB_PATH = "/data/bot_data.sqlite"
 
@@ -324,10 +325,18 @@ async def handle_message(message: types.Message):
         return
 
     if text_l == "концерт":
+        # только в разрешённых группах/супергруппах
+        if message.chat.type not in ("group", "supergroup") or message.chat.id not in ALLOWED_CONCERT_CHATS:
+            await message.reply("Команда «концерт» доступна только в клубном чате.")
+            return
         await handle_hero_of_day(message)
         return
 
     if text_l == "выступить":
+        # только в разрешённых группах/супергруппах
+        if message.chat.type not in ("group", "supergroup") or message.chat.id not in ALLOWED_CONCERT_CHATS:
+            await message.reply("Команда «выступить» доступна только в клубном чате.")
+            return
         await handle_hero_concert(message)
         return
 
@@ -637,7 +646,7 @@ async def handle_vruchit(message: types.Message):
 
     recipient = message.reply_to_message.from_user
     await change_balance(recipient.id, amount, "выдача из сейфа", message.from_user.id)
-    await message.reply(f"🧮Я выдал {fmt_money(amount)} нуаров {mention_html(recipient.id, recipient.full_name)}", parse_mode="HTML")
+    await message.reply(f"🧮Я выдал {fmt_money(amount)} {mention_html(recipient.id, recipient.full_name)}", parse_mode="HTML")
 
 async def handle_otnyat(message: types.Message, text: str, author_id: int):
     if not message.reply_to_message:
@@ -657,7 +666,7 @@ async def handle_otnyat(message: types.Message, text: str, author_id: int):
         await message.reply(f"У {html.escape(recipient.full_name)} нет такого количества нуаров. Баланс: {fmt_money(current_balance)}")
         return
     await change_balance(recipient.id, -amount, "взыскание в сейф", author_id)
-    await message.reply(f"🧮Я взыскал {fmt_money(amount)} нуаров у {mention_html(recipient.id, recipient.full_name)}", parse_mode="HTML")
+    await message.reply(f"🧮Я взыскал {fmt_money(amount)} у {mention_html(recipient.id, recipient.full_name)}", parse_mode="HTML")
 
 async def handle_peredat(message: types.Message):
     if not message.reply_to_message:
@@ -690,7 +699,7 @@ async def handle_peredat(message: types.Message):
     if payout > 0:
         await message.reply(f"🎁 Бонус щедрости: +{fmt_money(payout)}")
     await message.reply(
-        f"💸Я передал {amount} нуаров от {mention_html(giver_id, message.from_user.full_name)} к {mention_html(recipient_id, recipient.full_name)}",
+        f"💸Я передал {fmt_money(amount)} от {mention_html(giver_id, message.from_user.full_name)} к {mention_html(recipient_id, recipient.full_name)}",
         parse_mode="HTML"
     )
 
@@ -1438,7 +1447,7 @@ async def handle_vault_stats(message: types.Message):
     burned_pct     = (stats["burned"] / stats["cap"] * 100) if stats["cap"] > 0 else 0.0
     base  = await get_stipend_base()
     bonus = await get_stipend_bonus()
-    income = await get_income()
+    theft  = await get_income()
 
 
     txt = (
@@ -1449,8 +1458,8 @@ async def handle_vault_stats(message: types.Message):
         f"🔄 <b>На руках:</b> {circulating_s}\n\n"
         f"🔥 <b>Сожжено:</b> {burned_s} ({burned_pct:.2f}%)\n\n"
         f"🧯 <b>Сжигание (налоги):</b> {bps_pct}\n\n"
-        f"💼 <b>Жалование:</b> база {base}, надбавка {bonus}\n"
-        f"🗡️ <b>Кража:</b> {income}"
+        f"💼 <b>Жалование:</b> база  {fmt_money(base)}, надбавка {fmt_money(bonus)}\n"
+        f"🗡️ <b>Кража:</b> {fmt_money(theft)}"
     )
     await message.reply(txt, parse_mode="HTML")
 
@@ -1485,7 +1494,7 @@ async def handle_casino_toggle(message: types.Message):
 
 async def handle_income_set(message: types.Message, v: int):
     await set_income(v)
-    await message.reply(f"Сумма удачной кражи установлена: {v}.")
+    await message.reply(f"Сумма удачной кражи установлена: {fmt_money(v)}.")
 
 async def handle_limit_bet_set(message: types.Message, v: int):
     await set_limit_bet(v)
@@ -1668,7 +1677,7 @@ async def handle_hero_concert(message: types.Message):
 
     await message.reply(
         "🎤 Это было грандиозно! Концерт почти затмил Битлз.\n"
-        f"Зрители в переходе ликовали и накидали вам {fmt_money(reward)} нуаров в шапку.",
+        f"Зрители в переходе ликовали и накидали вам {fmt_money(reward)} в шапку.",
     )
 
 async def _pin_paid(message: types.Message, loud: bool):

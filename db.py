@@ -1,4 +1,5 @@
 import aiosqlite
+import re
 from typing import Optional, Dict, Any, List, Tuple
 
 DB_PATH = "/data/bot_data.sqlite"
@@ -693,7 +694,6 @@ async def add_generosity_points(user_id: int, pts: int, source: str):
 
 async def get_generosity_points(user_id: int) -> int:
     # сумма add - сумма списаний (выплат) в очках
-    import aiosqlite
     total = 0
     async with aiosqlite.connect(DB_PATH) as db:
         async with db.execute("""
@@ -765,7 +765,6 @@ async def codeword_cancel_active(chat_id: int, curator_id: int):
 
 async def codeword_get_active(chat_id: int):
     # ищем последнюю запись set для заданного чата и проверяем её активность
-    import aiosqlite, re
     last = None
     async with aiosqlite.connect(DB_PATH) as db:
         async with db.execute("""
@@ -801,7 +800,6 @@ async def codeword_mark_win(chat_id: int, winner_id: int, prize: int, word: str)
 # ==== NEW: обороты рынка ====
 # Суммируем суммы по событиям (perk_buy / emerald_buy / offer_sold) за окно в днях
 async def get_market_turnover_days(days: int) -> int:
-    import aiosqlite
     total = 0
     async with aiosqlite.connect(DB_PATH) as db:
         for action in ("perk_buy", "emerald_buy", "offer_sold"):
