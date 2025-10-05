@@ -24,7 +24,7 @@ from db import (
     codeword_set, codeword_cancel_active, set_generosity_mult_pct,
     set_generosity_threshold, set_price_pin, set_price_pin_loud,
     insert_history, get_circulating, get_price_pin, get_price_pin_loud,
-    get_generosity_points,
+    get_generosity_points, get_generosity_threshold,
 
     # анти-дубль
     is_msg_processed, mark_msg_processed,
@@ -422,11 +422,14 @@ async def handle_message(message: types.Message):
             await message.reply("Надбавка к жалованию обновлена.")
             return
 
-        if text_l == "щедрость статус" and author_id == KURATOR_ID:
-            pts = await get_generosity_points(message.from_user.id)
-            mult = await get_generosity_mult_pct()
-            thr = await get_generosity_threshold()
-            await message.reply(f"Щедрость: множитель {mult}%, порог {thr}, у вас очков: {pts}.")
+        if text_l == "щедрость статус":
+            try:
+                pts  = await get_generosity_points(message.from_user.id)
+                mult = await get_generosity_mult_pct()
+                thr  = await get_generosity_threshold()
+                await message.reply(f"Щедрость: множитель {mult}%, порог {thr}, у вас очков: {pts}.")
+            except Exception as e:
+                await message.reply(f"Ошибка статуса щедрости: {e}")
             return
 
         if text_l == "щедрость очки" and author_id == KURATOR_ID and message.reply_to_message:
