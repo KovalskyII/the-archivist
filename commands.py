@@ -24,6 +24,7 @@ from db import (
     codeword_set, codeword_cancel_active, set_generosity_mult_pct,
     set_generosity_threshold, set_price_pin, set_price_pin_loud,
     insert_history, get_circulating, get_price_pin, get_price_pin_loud,
+    get_generosity_points,
 
     # анти-дубль
     is_msg_processed, mark_msg_processed,
@@ -445,7 +446,6 @@ async def handle_message(message: types.Message):
             await set_generosity_threshold(int(m.group(1)))
             await message.reply("Порог награды щедрости сохранён.")
             return
-
 
         m = re.match(r"^цена\s+пост\s+(\d+)$", text_l)
         if m and author_id == KURATOR_ID:
