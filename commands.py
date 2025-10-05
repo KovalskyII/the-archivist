@@ -348,6 +348,77 @@ async def handle_message(message: types.Message):
     if text_l == "закрепить пост громко":
         await _pin_paid(message, loud=True); return
 
+    # ======= ЩЕДРОСТЬ (только Куратор, но работает и в ЛС, и в чате) =======
+    if text_l.startswith("щедрость"):
+        # только Куратор
+        if author_id != KURATOR_ID:
+            await message.reply("Эта команда доступна только Куратору.")
+            return
+
+        # статус
+        if text_l.strip() == "щедрость статус":
+            try:
+                pts  = await get_generosity_points(message.from_user.id)
+                mult = await get_generosity_mult_pct()
+                thr  = await get_generosity_threshold()
+                await message.reply(f"Щедрость: множитель {mult}%, порог {thr}, у вас очков: {pts}.")
+            except Exception as e:
+                await message.reply(f"Ошибка статуса щедрости: {e}")
+            return
+
+        # очки (reply = чьи-то, иначе — свои)
+        if text_l.strip() == "щедрость очки":
+            try:
+                uid = message.reply_to_message.from_user.id if message.reply_to_message else message.from_user.id
+                name = (message.reply_to_message.from_user.full_name
+                        if message.reply_to_message else message.from_user.full_name)
+                pts = await get_generosity_points(uid)
+                await message.reply(f"Очки щедрости у {html.escape(name)}: {pts}.")
+            except Exception as e:
+                await message.reply(f"Ошибка чтения очков: {e}")
+            return
+
+        # множитель %
+        m = re.match(r"^щедрость\s+множитель\s+(\d+)\s*$", text_l)
+        if m:
+            await set_generosity_mult_pct(int(m.group(1)))
+            await message.reply("Множитель щедрости сохранён.")
+            return
+
+        # порог награды (сколько очков нужно для автопремии)
+        m = re.match(r"^щедрость\s+награда\s+(\d+)\s*$", text_l)
+        if m:
+            await set_generosity_threshold(int(m.group(1)))
+            await message.reply("Порог награды щедрости сохранён.")
+            return
+
+        # обнуление очков конкретному участнику (reply)
+        if text_l.strip() == "щедрость обнулить" and message.reply_to_message:
+            try:
+                uid = message.reply_to_message.from_user.id
+                pts = await _generosity_reset_points_for(uid)
+                await message.reply(f"Очки щедрости обнулены. Списано: {pts}.")
+            except Exception as e:
+                await message.reply(f"Ошибка обнуления: {e}")
+            return
+
+        # массовое обнуление
+        if text_l.strip() == "щедрость обнулить все подтверждаю":
+            try:
+                total_users = 0
+                total_pts = 0
+                for uid in await get_known_users():
+                    pts = await get_generosity_points(uid)
+                    if pts > 0:
+                        await insert_history(uid, "generosity_pay_points", pts, "reset_all")
+                        total_pts += pts
+                        total_users += 1
+                await message.reply(f"Обнуление завершено. Пользователей: {total_users}, списано очков: {total_pts}.")
+            except Exception as e:
+                await message.reply(f"Ошибка массового обнуления: {e}")
+            return
+
+
 
     # ======= Команды с ключом =======
     user_has_key = (author_id == KURATOR_ID) or await has_key(author_id)
@@ -418,57 +489,6 @@ async def handle_message(message: types.Message):
             await message.reply("Надбавка к жалованию обновлена.")
             return
 
-        if text_l == "щедрость статус":
-            try:
-                pts  = await get_generosity_points(message.from_user.id)
-                mult = await get_generosity_mult_pct()
-                thr  = await get_generosity_threshold()
-                await message.reply(f"Щедрость: множитель {mult}%, порог {thr}, у вас очков: {pts}.")
-            except Exception as e:
-                await message.reply(f"Ошибка статуса щедрости: {e}")
-            return
-
-        if text_l == "щедрость очки" and message.reply_to_message:
-            uid = message.reply_to_message.from_user.id
-            pts = await get_generosity_points(uid)
-            await message.reply(f"У {uid} накоплено очков щедрости: {pts}.")
-            return
-
-        m = re.match(r"^щедрость\s+множитель\s+(\d+)$", text_l)
-        if m:
-            await set_generosity_mult_pct(int(m.group(1)))
-            await message.reply("Множитель щедрости сохранён.")
-            return
-
-        m = re.match(r"^щедрость\s+награда\s+(\d+)$", text_l)
-        if m:
-            await set_generosity_threshold(int(m.group(1)))
-            await message.reply("Порог награды щедрости сохранён.")
-            return
-
-        if text_l == "щедрость обнулить" and message.reply_to_message:
-            try:
-                uid = message.reply_to_message.from_user.id
-                pts = await _generosity_reset_points_for(uid)
-                await message.reply(f"Очки щедрости обнулены. Списано: {pts}.")
-            except Exception as e:
-                await message.reply(f"Ошибка обнуления: {e}")
-            return
-
-        if text_l == "щедрость обнулить все подтверждаю":
-            try:
-                total_users = 0
-                total_pts = 0
-                for uid in await get_known_users():
-                    pts = await get_generosity_points(uid)
-                    if pts > 0:
-                        await insert_history(uid, "generosity_pay_points", pts, "reset_all")
-                        total_pts += pts
-                        total_users += 1
-                await message.reply(f"Обнуление завершено. Пользователей: {total_users}, списано очков: {total_pts}.")
-            except Exception as e:
-                await message.reply(f"Ошибка массового обнуления: {e}")
-            return
 
         m = re.match(r"^цена\s+пост\s+(\d+)$", text_l)
         if m:
