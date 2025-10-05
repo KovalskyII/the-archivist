@@ -5,6 +5,7 @@ import asyncio
 import random
 import html
 from typing import List, Tuple
+from datetime import datetime
 
 from aiogram import types
 from aiogram.types import FSInputFile
@@ -17,10 +18,12 @@ from db import (
     reset_all_balances, set_role_image, get_role_with_image,
     get_key_holders, get_known_users, hero_get_current, hero_set_for_today,
     hero_has_claimed_today, hero_record_claim,
-    get_stipend_base, get_stipend_bonus,
+    get_stipend_base, get_stipend_bonus, set_stipend_base, set_stipend_bonus,
     get_generosity_mult_pct, add_generosity_points, generosity_try_payout,
     get_market_turnover_days, codeword_get_active, codeword_mark_win,
-    codeword_set, codeword_cancel_active,
+    codeword_set, codeword_cancel_active, set_generosity_mult_pct,
+    set_generosity_threshold, set_price_pin, set_price_pin_loud,
+    insert_history, get_circulating, get_price_pin, get_price_pin_loud,
 
     # анти-дубль
     is_msg_processed, mark_msg_processed,
@@ -393,42 +396,36 @@ async def handle_message(message: types.Message):
 
         m = re.match(r"^жалование\s+база\s+(\d+)$", text_l)
         if m and author_id == KURATOR_ID:
-            from db import set_stipend_base
             await set_stipend_base(int(m.group(1)))
             await message.reply("Базовое жалование обновлено.")
             return
 
         m = re.match(r"^жалование\s+надбавка\s+(\d+)$", text_l)
         if m and author_id == KURATOR_ID:
-            from db import set_stipend_bonus
             await set_stipend_bonus(int(m.group(1)))
             await message.reply("Надбавка к жалованию обновлена.")
             return
 
         m = re.match(r"^щедрость\s+множитель\s+(\d+)$", text_l)
         if m and author_id == KURATOR_ID:
-            from db import set_generosity_mult_pct
             await set_generosity_mult_pct(int(m.group(1)))
             await message.reply("Множитель щедрости сохранён.")
             return
 
         m = re.match(r"^щедрость\s+награда\s+(\d+)$", text_l)
         if m and author_id == KURATOR_ID:
-            from db import set_generosity_threshold
             await set_generosity_threshold(int(m.group(1)))
             await message.reply("Порог награды щедрости сохранён.")
             return
 
         m = re.match(r"^цена\s+пост\s+(\d+)$", text_l)
         if m and author_id == KURATOR_ID:
-            from db import set_price_pin
             await set_price_pin(int(m.group(1)))
             await message.reply("Цена «повесить пост» обновлена.")
             return
 
         m = re.match(r"^цена\s+громкий\s+пост\s+(\d+)$", text_l)
         if m and author_id == KURATOR_ID:
-            from db import set_price_pin_loud
             await set_price_pin_loud(int(m.group(1)))
             await message.reply("Цена «повесить громко» обновлена.")
             return
@@ -1074,7 +1071,6 @@ async def handle_stipend_claim(message: types.Message):
         return
 
     # считаем размер: база + (если есть перк «надбавка», добавляем бонус)
-    from db import get_stipend_base, get_stipend_bonus, get_perks
     base = await get_stipend_base()
     bonus = 0
     perks = await get_perks(user_id)
@@ -1279,11 +1275,9 @@ async def handle_offer_buy(message: types.Message, offer_id: int):
         await record_burn(burn, f"offer_id={offer_id}")
 
     # записать продажу
-    from db import insert_history  # локальный импорт чтобы не зацикливаться вверху
     sale_id = await insert_history(buyer_id, "offer_sold", price, f"offer_id={offer_id};seller={offer['seller_id']}")
 
     # контракт
-    from datetime import datetime
     today = datetime.utcnow().strftime("%Y%m%d")
     contract_id = f"C-{today}-{sale_id}"
     seller_mention = mention_html(offer["seller_id"], "Продавец")
@@ -1312,7 +1306,6 @@ async def handle_buy_emerald(message: types.Message):
     if burn > 0:
         await record_burn(burn, "emerald")
     # контракт/чек
-    from db import insert_history
     sale_id = await insert_history(buyer_id, "emerald_buy", price, None)
     from datetime import datetime
     today = datetime.utcnow().strftime("%Y%m%d")
@@ -1359,7 +1352,6 @@ async def handle_buy_perk(message: types.Message, code: str):
     await grant_perk(buyer_id, code)
 
     # чек
-    from db import insert_history
     sale_id = await insert_history(buyer_id, "perk_buy", price, code)
     from datetime import datetime
     today = datetime.utcnow().strftime("%Y%m%d")
@@ -1395,7 +1387,6 @@ async def handle_vault_enable(message: types.Message):
 
 async def get_circulating_safe() -> int:
     # обёртка на случай изоляции
-    from db import get_circulating
     return await get_circulating()
 
 async def handle_vault_reset(message: types.Message):
@@ -1660,7 +1651,6 @@ async def _pin_paid(message: types.Message, loud: bool):
     if not message.reply_to_message:
         await message.reply("Нужно ответить на сообщение, которое хотите закрепить.")
         return
-    from db import get_price_pin, get_price_pin_loud
     price = await get_price_pin_loud() if loud else await get_price_pin()
 
     user_id = message.from_user.id
