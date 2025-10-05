@@ -130,7 +130,6 @@ async def handle_message(message: types.Message):
     if message.text and message.chat.id == CLUB_CHAT_ID:
         cw = await codeword_get_active(CLUB_CHAT_ID)
         if cw:
-            import re
             def norm(s: str) -> str:
                 return re.sub(r"[^a-zA-Zа-яА-ЯёЁ0-9]+", "", s).lower().strip()
             guess  = norm(message.text)
