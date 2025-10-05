@@ -126,15 +126,21 @@ async def handle_message(message: types.Message):
         return
 
     # --- ловушка для код-слова (только в целевом чате) ---
-    if message.chat.id == CLUB_CHAT_ID and message.text:
-        cw = await codeword_get_active(CLUB_CHAT_ID)
+    if message.text:
+        chat_id = message.chat.id
+        cw = await codeword_get_active(chat_id)
         if cw:
-            guess = message.text.strip().lower()
-            if guess == cw["word"]:
-                # платим победителю
+            # нормализация: нижний регистр, убираем всё кроме букв/цифр
+            import re
+            def norm(s: str) -> str:
+                return re.sub(r"[^a-zA-Zа-яА-ЯёЁ0-9]+", "", s).lower().strip()
+
+            guess = norm(message.text)
+            target = norm(cw["word"] or "")
+            if target and guess == target:
                 prize = int(cw["prize"])
                 await change_balance(message.from_user.id, prize, "codeword_prize", message.from_user.id)
-                await codeword_mark_win(CLUB_CHAT_ID, message.from_user.id, prize, cw["word"])
+                await codeword_mark_win(chat_id, message.from_user.id, prize, cw["word"])
                 await message.reply(
                     f"🎉 Слово угадано! Конечно же это — <b>{html.escape(cw['word'])}</b>.\n"
                     f"Ты получаешь: {fmt_money(prize)}.",
@@ -425,6 +431,19 @@ async def handle_message(message: types.Message):
         if m and author_id == KURATOR_ID:
             await set_generosity_threshold(int(m.group(1)))
             await message.reply("Порог награды щедрости сохранён.")
+            return
+
+        if text_l == "щедрость статус" and author_id == KURATOR_ID:
+            pts = await get_generosity_points(message.from_user.id)
+            mult = await get_generosity_mult_pct()
+            thr = await get_generosity_threshold()
+            await message.reply(f"Щедрость: множитель {mult}%, порог {thr}, у вас очков: {pts}.")
+            return
+
+        if text_l == "щедрость очки" and author_id == KURATOR_ID and message.reply_to_message:
+            uid = message.reply_to_message.from_user.id
+            pts = await get_generosity_points(uid)
+            await message.reply(f"У {uid} накоплено очков щедрости: {pts}.")
             return
 
         m = re.match(r"^цена\s+пост\s+(\d+)$", text_l)
