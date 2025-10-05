@@ -123,7 +123,6 @@ async def handle_message(message: types.Message):
 
     # --- ловушка для код-слова (только в целевом чате) ---
     if message.chat.id == CLUB_CHAT_ID and message.text:
-        from db import codeword_get_active, codeword_mark_win
         cw = await codeword_get_active(CLUB_CHAT_ID)
         if cw:
             guess = message.text.strip().lower()
