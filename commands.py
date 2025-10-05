@@ -450,6 +450,30 @@ async def handle_message(message: types.Message):
             await message.reply("Порог награды щедрости сохранён.")
             return
 
+        if text_l == "щедрость обнулить" and message.reply_to_message:
+            try:
+                uid = message.reply_to_message.from_user.id
+                pts = await _generosity_reset_points_for(uid)
+                await message.reply(f"Очки щедрости обнулены. Списано: {pts}.")
+            except Exception as e:
+                await message.reply(f"Ошибка обнуления: {e}")
+            return
+
+        if text_l == "щедрость обнулить все подтверждаю":
+            try:
+                total_users = 0
+                total_pts = 0
+                for uid in await get_known_users():
+                    pts = await get_generosity_points(uid)
+                    if pts > 0:
+                        await insert_history(uid, "generosity_pay_points", pts, "reset_all")
+                        total_pts += pts
+                        total_users += 1
+                await message.reply(f"Обнуление завершено. Пользователей: {total_users}, списано очков: {total_pts}.")
+            except Exception as e:
+                await message.reply(f"Ошибка массового обнуления: {e}")
+            return
+
         m = re.match(r"^цена\s+пост\s+(\d+)$", text_l)
         if m:
             await set_price_pin(int(m.group(1)))
@@ -463,12 +487,15 @@ async def handle_message(message: types.Message):
             return
 
         m = re.match(r"^установить\s+код\s+(\S+)\s+(\d+)$", text_l)
-        if m:
+        if m and author_id == KURATOR_ID:
+            # разрешаем запуск ТОЛЬКО в ЛС
+            if message.chat.type != "private":
+                await message.reply("Загадывать код можно только в ЛС. Напишите мне в личку.")
+                return
+
             word = m.group(1)
             prize = int(m.group(2))
-
-            # куда объявлять: из ЛС — в клубный чат, из группы — в текущий
-            target_chat_id = CLUB_CHAT_ID if message.chat.type == "private" else message.chat.id
+            target_chat_id = CLUB_CHAT_ID  # всегда клубный чат
 
             cur = await codeword_get_active(target_chat_id)
             if cur:
@@ -477,35 +504,33 @@ async def handle_message(message: types.Message):
 
             await codeword_set(target_chat_id, word.lower(), prize, KURATOR_ID)
 
-            # пробуем объявить; не глушим исключение
             try:
                 await message.bot.send_message(
                     target_chat_id,
                     f"🧩 Начинается викторина КОД-СЛОВО!\n"
-                    f"Угадайте слово, загаданное Куратором, и получите {fmt_money(prize)}."
+                    f"Угадайте слово Куратора и получите {fmt_money(prize)}.\n\n"
+                    f"Подсказка: слово без учёта регистра и знаков. Пишите прямо сюда."
                 )
-                await message.reply("Код установлен и объявлен в чате.")
+                await message.reply("Код установлен. Я объявил игру в Клубе — ждём угадывания там.")
             except Exception as e:
                 await message.reply(
-                    f"Код установлен, но не удалось объявить в чате ({e}). "
-                    f"Проверь права бота и верность CLUB_CHAT_ID."
+                    f"Код установлен, но объявить в Клубе не удалось ({e}). "
+                    f"Проверь права бота и CLUB_CHAT_ID."
                 )
             return
 
-        if text_l == "отменить код":
-            # где отменяем: в ЛС — клубный чат, в группе — текущий чат
-            target_chat_id = CLUB_CHAT_ID if getattr(message.chat, "type", "") == "private" else message.chat.id
 
+        if text_l == "отменить код" and author_id == KURATOR_ID:
+            target_chat_id = CLUB_CHAT_ID
             ok = await codeword_cancel_active(target_chat_id, KURATOR_ID)
             if ok:
                 await message.reply("Игра отменена.")
-                # оповестим сам чат, где шла игра (тихо игнорируем ошибки)
                 try:
                     await message.bot.send_message(target_chat_id, "🛑 Викторина КОД-СЛОВО остановлена.")
                 except Exception:
                     pass
             else:
-                await message.reply("Активной игры нет.")
+                await message.reply("Активной игры в Клубе нет.")
             return
 
 
@@ -1729,3 +1754,9 @@ async def _pin_paid(message: types.Message, loud: bool):
     except Exception as e:
         await message.reply(f"Не удалось закрепить: {e}")
 
+async def _generosity_reset_points_for(user_id: int) -> int:
+    pts = await get_generosity_points(user_id)
+    if pts > 0:
+        # спишем очки «в ноль» единым движением
+        await insert_history(user_id, "generosity_pay_points", pts, "reset")
+    return pts
