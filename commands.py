@@ -127,28 +127,24 @@ async def handle_message(message: types.Message):
         return
 
     # --- ловушка для код-слова (только в целевом чате) ---
-    if message.text:
-        chat_id = message.chat.id
-        cw = await codeword_get_active(chat_id)
+    if message.text and message.chat.id == CLUB_CHAT_ID:
+        cw = await codeword_get_active(CLUB_CHAT_ID)
         if cw:
-            # нормализация: нижний регистр, убираем всё кроме букв/цифр
             import re
             def norm(s: str) -> str:
                 return re.sub(r"[^a-zA-Zа-яА-ЯёЁ0-9]+", "", s).lower().strip()
-
-            guess = norm(message.text)
+            guess  = norm(message.text)
             target = norm(cw["word"] or "")
             if target and guess == target:
                 prize = int(cw["prize"])
                 await change_balance(message.from_user.id, prize, "codeword_prize", message.from_user.id)
-                await codeword_mark_win(chat_id, message.from_user.id, prize, cw["word"])
+                await codeword_mark_win(CLUB_CHAT_ID, message.from_user.id, prize, cw["word"])
                 await message.reply(
                     f"🎉 Слово угадано! Конечно же это — <b>{html.escape(cw['word'])}</b>.\n"
                     f"Ты получаешь: {fmt_money(prize)}.",
                     parse_mode="HTML"
                 )
                 return
-
 
     # ======= Команды для всех =======
     t = message.text.lower().strip().split("@", 1)[0]
