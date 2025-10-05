@@ -421,18 +421,6 @@ async def handle_message(message: types.Message):
             await message.reply("Надбавка к жалованию обновлена.")
             return
 
-        m = re.match(r"^щедрость\s+множитель\s+(\d+)$", text_l)
-        if m and author_id == KURATOR_ID:
-            await set_generosity_mult_pct(int(m.group(1)))
-            await message.reply("Множитель щедрости сохранён.")
-            return
-
-        m = re.match(r"^щедрость\s+награда\s+(\d+)$", text_l)
-        if m and author_id == KURATOR_ID:
-            await set_generosity_threshold(int(m.group(1)))
-            await message.reply("Порог награды щедрости сохранён.")
-            return
-
         if text_l == "щедрость статус" and author_id == KURATOR_ID:
             pts = await get_generosity_points(message.from_user.id)
             mult = await get_generosity_mult_pct()
@@ -445,6 +433,19 @@ async def handle_message(message: types.Message):
             pts = await get_generosity_points(uid)
             await message.reply(f"У {uid} накоплено очков щедрости: {pts}.")
             return
+
+        m = re.match(r"^щедрость\s+множитель\s+(\d+)$", text_l)
+        if m and author_id == KURATOR_ID:
+            await set_generosity_mult_pct(int(m.group(1)))
+            await message.reply("Множитель щедрости сохранён.")
+            return
+
+        m = re.match(r"^щедрость\s+награда\s+(\d+)$", text_l)
+        if m and author_id == KURATOR_ID:
+            await set_generosity_threshold(int(m.group(1)))
+            await message.reply("Порог награды щедрости сохранён.")
+            return
+
 
         m = re.match(r"^цена\s+пост\s+(\d+)$", text_l)
         if m and author_id == KURATOR_ID:
