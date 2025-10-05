@@ -298,7 +298,7 @@ async def handle_message(message: types.Message):
         await handle_casino_toggle(message)
         return
 
-    m = re.match(r"^доход\s+(\d+)$", text_l)
+    m = re.match(r"^кража\s+(\d+)$", text_l)
     if m and author_id == KURATOR_ID:
         await handle_income_set(message, int(m.group(1)))
         return
@@ -1436,6 +1436,10 @@ async def handle_vault_stats(message: types.Message):
     income_s       = fmt_int(stats["income"])  # это размер «зп/кражи» в нуарах
     bps_pct        = fmt_percent_bps(stats["burn_bps"])
     burned_pct     = (stats["burned"] / stats["cap"] * 100) if stats["cap"] > 0 else 0.0
+    base  = await get_stipend_base()
+    bonus = await get_stipend_bonus()
+    income = await get_income()
+
 
     txt = (
         "🏦 <b>ЭКОНОМИКА КЛУБА</b>\n"
@@ -1445,7 +1449,8 @@ async def handle_vault_stats(message: types.Message):
         f"🔄 <b>На руках:</b> {circulating_s}\n\n"
         f"🔥 <b>Сожжено:</b> {burned_s} ({burned_pct:.2f}%)\n\n"
         f"🧯 <b>Сжигание (налоги):</b> {bps_pct}\n\n"
-        f"💵 <b>Доход (зп/кража):</b> {income_s}"
+        f"💼 <b>Жалование:</b> база {base}, надбавка {bonus}\n"
+        f"🗡️ <b>Кража:</b> {income}"
     )
     await message.reply(txt, parse_mode="HTML")
 
@@ -1480,7 +1485,7 @@ async def handle_casino_toggle(message: types.Message):
 
 async def handle_income_set(message: types.Message, v: int):
     await set_income(v)
-    await message.reply(f"Доход (зп/кража) установлены: {v}.")
+    await message.reply(f"Сумма удачной кражи установлена: {v}.")
 
 async def handle_limit_bet_set(message: types.Message, v: int):
     await set_limit_bet(v)
@@ -1523,7 +1528,7 @@ async def handle_commands_catalog(message: types.Message):
         "цена перк <код> <N> — установить цену перка",
         "множитель кубик|дартс|боулинг|автоматы <X> — множитель выигрыша",
         "казино открыть|закрыть — включить/выключить игры",
-        "доход <N> — размер ежедневной «зп» и кражи",
+        "кража <N> — размер удачной кражи перка вор",
         "лимит ставка <N> — максимальная ставка за игру (0 — без лимита)",
         "лимит дождь <N> — максимальная сумма за одну команду «дождь» (0 — без лимита)",
         "у кого перк <код> — список обладателей перка",
