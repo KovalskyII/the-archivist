@@ -283,51 +283,51 @@ async def handle_message(message: types.Message):
 
     # конфиги
     m = re.match(r"^сжигание\s+(\d+)$", text_l)
-    if m and author_id == KURATOR_ID:
+    if m:
         await handle_burn_bps_set(message, int(m.group(1)))
         return
 
     m = re.match(r"^цена\s+эмеральд\s+(\d+)$", text_l)
-    if m and author_id == KURATOR_ID:
+    if m:
         await handle_price_emerald_set(message, int(m.group(1)))
         return
 
     m = re.match(r"^цена\s+перк\s+(\S+)\s+(\d+)$", text_l)
-    if m and author_id == KURATOR_ID:
+    if m:
         await handle_price_perk_set(message, m.group(1), int(m.group(2)))
         return
 
     m = re.match(r"^множитель\s+(кубик|дартс|боулинг|автоматы)\s+(\d+)$", text_l)
-    if m and author_id == KURATOR_ID:
+    if m:
         await handle_multiplier_set(message, m.group(1), int(m.group(2)))
         return
 
-    if text_l in ("казино открыть", "казино закрыть") and author_id == KURATOR_ID:
+    if text_l in ("казино открыть", "казино закрыть"):
         await handle_casino_toggle(message)
         return
 
     m = re.match(r"^кража\s+(\d+)$", text_l)
-    if m and author_id == KURATOR_ID:
+    if m:
         await handle_income_set(message, int(m.group(1)))
         return
 
     m = re.match(r"^лимит\s+ставка\s+(\d+)$", text_l)
-    if m and author_id == KURATOR_ID:
+    if m:
         await handle_limit_bet_set(message, int(m.group(1)))
         return
 
     m = re.match(r"^лимит\s+дождь\s+(\d+)$", text_l)
-    if m and author_id == KURATOR_ID:
+    if m:
         await handle_limit_rain_set(message, int(m.group(1)))
         return
 
     # держатели перка / реестр
     m = re.match(r"^(?:у кого перк|держатели перка)\s+(\S+)$", text_l)
-    if m and author_id == KURATOR_ID:
+    if m:
         await handle_perk_holders_list(message, m.group(1))
         return
 
-    if text_l == "перки реестр" and author_id == KURATOR_ID:
+    if text_l == "перки реестр":
         await handle_perk_registry(message)
         return
 
@@ -411,13 +411,13 @@ async def handle_message(message: types.Message):
             return
 
         m = re.match(r"^жалование\s+база\s+(\d+)$", text_l)
-        if m and author_id == KURATOR_ID:
+        if m:
             await set_stipend_base(int(m.group(1)))
             await message.reply("Базовое жалование обновлено.")
             return
 
         m = re.match(r"^жалование\s+надбавка\s+(\d+)$", text_l)
-        if m and author_id == KURATOR_ID:
+        if m:
             await set_stipend_bonus(int(m.group(1)))
             await message.reply("Надбавка к жалованию обновлена.")
             return
@@ -432,38 +432,38 @@ async def handle_message(message: types.Message):
                 await message.reply(f"Ошибка статуса щедрости: {e}")
             return
 
-        if text_l == "щедрость очки" and author_id == KURATOR_ID and message.reply_to_message:
+        if text_l == "щедрость очки" and message.reply_to_message:
             uid = message.reply_to_message.from_user.id
             pts = await get_generosity_points(uid)
             await message.reply(f"У {uid} накоплено очков щедрости: {pts}.")
             return
 
         m = re.match(r"^щедрость\s+множитель\s+(\d+)$", text_l)
-        if m and author_id == KURATOR_ID:
+        if m:
             await set_generosity_mult_pct(int(m.group(1)))
             await message.reply("Множитель щедрости сохранён.")
             return
 
         m = re.match(r"^щедрость\s+награда\s+(\d+)$", text_l)
-        if m and author_id == KURATOR_ID:
+        if m:
             await set_generosity_threshold(int(m.group(1)))
             await message.reply("Порог награды щедрости сохранён.")
             return
 
         m = re.match(r"^цена\s+пост\s+(\d+)$", text_l)
-        if m and author_id == KURATOR_ID:
+        if m:
             await set_price_pin(int(m.group(1)))
             await message.reply("Цена «повесить пост» обновлена.")
             return
 
         m = re.match(r"^цена\s+громкий\s+пост\s+(\d+)$", text_l)
-        if m and author_id == KURATOR_ID:
+        if m:
             await set_price_pin_loud(int(m.group(1)))
             await message.reply("Цена «повесить громко» обновлена.")
             return
 
         m = re.match(r"^установить\s+код\s+(\S+)\s+(\d+)$", text_l)
-        if m and author_id == KURATOR_ID:
+        if m:
             word = m.group(1)
             prize = int(m.group(2))
 
@@ -492,7 +492,7 @@ async def handle_message(message: types.Message):
                 )
             return
 
-        if text_l == "отменить код" and author_id == KURATOR_ID:
+        if text_l == "отменить код":
             # где отменяем: в ЛС — клубный чат, в группе — текущий чат
             target_chat_id = CLUB_CHAT_ID if getattr(message.chat, "type", "") == "private" else message.chat.id
 
