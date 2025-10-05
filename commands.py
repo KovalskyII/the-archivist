@@ -550,6 +550,82 @@ async def handle_message(message: types.Message):
 
 
 # ---------- базовые куски (ролы, фото, рейтинги и т.п.) ----------
+# ===== Хендлеры ролей/ключа (старые команды, возвращаем) =====
+
+async def handle_naznachit(message: types.Message):
+    # Формат: ответом на участника, текст вида:
+    #   назначить "Название роли" Описание роли...
+    if message.from_user.id != KURATOR_ID:
+        return
+    if not message.reply_to_message:
+        await message.reply("Команда «назначить» работает только ответом на сообщение участника.")
+        return
+
+    raw = message.text.strip()
+    # Пытаемся вытащить роль в кавычках и описание после неё
+    # Разрешим и вариант без кавычек: назначить Роль Описание...
+    m = re.match(r'^назначить\s+"([^"]+)"\s+(.+)$', raw, re.IGNORECASE)
+    if not m:
+        m = re.match(r'^назначить\s+(\S+)\s+(.+)$', raw, re.IGNORECASE)
+
+    if not m:
+        await message.reply('Формат: назначить "Роль" Описание (ответом на участника)')
+        return
+
+    role_name = m.group(1).strip()
+    role_desc = m.group(2).strip()
+
+    target_id = message.reply_to_message.from_user.id
+    try:
+        await set_role(target_id, role_name, role_desc)
+        await message.reply(f"Назначена роль «{role_name}».")
+    except Exception as e:
+        await message.reply(f"Не удалось назначить роль: {e}")
+
+
+async def handle_snyat_rol(message: types.Message):
+    if message.from_user.id != KURATOR_ID:
+        return
+    if not message.reply_to_message:
+        await message.reply("Команда «снять роль» работает только ответом на сообщение участника.")
+        return
+
+    target_id = message.reply_to_message.from_user.id
+    # Сбросим на дефолт: «Участник», без описания (сохраняемо и совместимо с витриной)
+    try:
+        await set_role(target_id, "Участник", "")
+        await message.reply("Роль снята.")
+    except Exception as e:
+        await message.reply(f"Не удалось снять роль: {e}")
+
+
+async def handle_kluch(message: types.Message):
+    if message.from_user.id != KURATOR_ID:
+        return
+    if not message.reply_to_message:
+        await message.reply("Команда «ключ от сейфа» работает только ответом на сообщение участника.")
+        return
+    target_id = message.reply_to_message.from_user.id
+    try:
+        await grant_key(target_id)
+        await message.reply("Ключ выдан.")
+    except Exception as e:
+        await message.reply(f"Не удалось выдать ключ: {e}")
+
+
+async def handle_snyat_kluch(message: types.Message):
+    if message.from_user.id != KURATOR_ID:
+        return
+    if not message.reply_to_message:
+        await message.reply("Команда «снять ключ» работает только ответом на сообщение участника.")
+        return
+    target_id = message.reply_to_message.from_user.id
+    try:
+        await revoke_key(target_id)
+        await message.reply("Ключ снят.")
+    except Exception as e:
+        await message.reply(f"Не удалось снять ключ: {e}")
+
 
 async def handle_photo_command(message: types.Message):
     if message.from_user.id != KURATOR_ID:
