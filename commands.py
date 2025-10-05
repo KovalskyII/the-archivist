@@ -438,24 +438,30 @@ async def handle_message(message: types.Message):
         if m and author_id == KURATOR_ID:
             word = m.group(1)
             prize = int(m.group(2))
-            cur = await codeword_get_active(CLUB_CHAT_ID)
+
+            # куда объявлять: из ЛС — в клубный чат, из группы — в текущий
+            target_chat_id = CLUB_CHAT_ID if message.chat.type == "private" else message.chat.id
+
+            cur = await codeword_get_active(target_chat_id)
             if cur:
                 await message.reply("Уже запущена игра КОД-СЛОВО. Сначала отмените текущую.")
                 return
-            await codeword_set(CLUB_CHAT_ID, word.lower(), prize, KURATOR_ID)
+
+            await codeword_set(target_chat_id, word.lower(), prize, KURATOR_ID)
+
+            # пробуем объявить; не глушим исключение
             try:
                 await message.bot.send_message(
-                    CLUB_CHAT_ID,
-                    f"🧩 Начинается викторина КОД-СЛОВО!\nУгадайте слово, загаданное Куратором и получите {fmt_money(prize)}."
+                    target_chat_id,
+                    f"🧩 Начинается викторина КОД-СЛОВО!\n"
+                    f"Угадайте слово, загаданное Куратором, и получите {fmt_money(prize)}."
                 )
-            except Exception:
-                pass
-            await message.reply("Код установлен и объявлен в чате.")
-            return
-
-        if text_l == "отменить код" and author_id == KURATOR_ID:
-            ok = await codeword_cancel_active(CLUB_CHAT_ID if message.chat.type == 'private' else message.chat.id, KURATOR_ID)
-            await message.reply("Игра отменена." if ok else "Активной игры нет.")
+                await message.reply("Код установлен и объявлен в чате.")
+            except Exception as e:
+                await message.reply(
+                    f"Код установлен, но не удалось объявить в чате ({e}). "
+                    f"Проверь права бота и верность CLUB_CHAT_ID."
+                )
             return
 
 
