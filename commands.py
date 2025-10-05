@@ -550,81 +550,85 @@ async def handle_message(message: types.Message):
 
 
 # ---------- базовые куски (ролы, фото, рейтинги и т.п.) ----------
-# ===== Хендлеры ролей/ключа (старые команды, возвращаем) =====
+# === Кураторские хендлеры ролей и ключа (точно под старую логику) ===
 
 async def handle_naznachit(message: types.Message):
-    # Формат: ответом на участника, текст вида:
-    #   назначить "Название роли" Описание роли...
+    """
+    Формат:  назначить "Роль" Описание
+    ВАЖНО: название роли строго в двойных кавычках, эмодзи в команду не передаём.
+    Работает ТОЛЬКО reply (на того, кому назначаем).
+    """
     if message.from_user.id != KURATOR_ID:
         return
     if not message.reply_to_message:
-        await message.reply("Команда «назначить» работает только ответом на сообщение участника.")
+        await message.reply('Нужно ответить на сообщение участника. Формат: назначить "Роль" Описание')
         return
 
-    raw = message.text.strip()
-    # Пытаемся вытащить роль в кавычках и описание после неё
-    # Разрешим и вариант без кавычек: назначить Роль Описание...
-    m = re.match(r'^назначить\s+"([^"]+)"\s+(.+)$', raw, re.IGNORECASE)
+    # Парсим ИЗ ОРИГИНАЛЬНОГО ТЕКСТА, без lower(), чтобы не сломать регистр/символы роли и описания
+    raw = (message.text or "").strip()
+    m = re.match(r'^\s*назначить\s+"([^"]+)"\s+(.+)\s*$', raw, flags=re.DOTALL)
     if not m:
-        m = re.match(r'^назначить\s+(\S+)\s+(.+)$', raw, re.IGNORECASE)
-
-    if not m:
-        await message.reply('Формат: назначить "Роль" Описание (ответом на участника)')
+        await message.reply('Формат: назначить "Роль" Описание\nПример: назначить "Аристократ" Любит тонкий юмор')
         return
 
     role_name = m.group(1).strip()
     role_desc = m.group(2).strip()
 
-    target_id = message.reply_to_message.from_user.id
-    try:
-        await set_role(target_id, role_name, role_desc)
-        await message.reply(f"Назначена роль «{role_name}».")
-    except Exception as e:
-        await message.reply(f"Не удалось назначить роль: {e}")
+    target = message.reply_to_message.from_user
+    # set_role ожидает (user_id, role, description)
+    await set_role(target.id, role_name, role_desc)
+
+    # Превью в том же стиле, как «моя роль»/«роль»
+    preview = f"🎭 *{role_name}*\n\n_{role_desc}_"
+    await message.reply_to_message.reply(preview, parse_mode="Markdown")
 
 
 async def handle_snyat_rol(message: types.Message):
+    """
+    Снимает роль у адресата (reply). Фото роли не трогаем.
+    """
     if message.from_user.id != KURATOR_ID:
         return
     if not message.reply_to_message:
-        await message.reply("Команда «снять роль» работает только ответом на сообщение участника.")
+        await message.reply("Нужно ответить на сообщение участника.")
         return
 
-    target_id = message.reply_to_message.from_user.id
-    # Сбросим на дефолт: «Участник», без описания (сохраняемо и совместимо с витриной)
-    try:
-        await set_role(target_id, "Участник", "")
-        await message.reply("Роль снята.")
-    except Exception as e:
-        await message.reply(f"Не удалось снять роль: {e}")
+    target = message.reply_to_message.from_user
+    # Сброс роли: кладём None/None — чтение «моя роль» корректно покажет «не знаю»
+    await set_role(target.id, None, None)
+    await message.reply_to_message.reply("Роль снята.")
 
 
 async def handle_kluch(message: types.Message):
+    """
+    Выдать ключ от сейфа (reply).
+    Владельцы ключа могут: «вручить», «взыскать/отнять», «карман».
+    """
     if message.from_user.id != KURATOR_ID:
         return
     if not message.reply_to_message:
-        await message.reply("Команда «ключ от сейфа» работает только ответом на сообщение участника.")
+        await message.reply("Нужно ответить на сообщение участника.")
         return
-    target_id = message.reply_to_message.from_user.id
-    try:
-        await grant_key(target_id)
-        await message.reply("Ключ выдан.")
-    except Exception as e:
-        await message.reply(f"Не удалось выдать ключ: {e}")
+
+    target = message.reply_to_message.from_user
+    await grant_key(target.id)
+    await message.reply_to_message.reply(f"🗝️ Ключ от сейфа выдан {mention_html(target.id, target.full_name)}.", parse_mode="HTML")
 
 
 async def handle_snyat_kluch(message: types.Message):
+    """
+    Снять ключ от сейфа (reply).
+    """
     if message.from_user.id != KURATOR_ID:
         return
     if not message.reply_to_message:
-        await message.reply("Команда «снять ключ» работает только ответом на сообщение участника.")
+        await message.reply("Нужно ответить на сообщение участника.")
         return
-    target_id = message.reply_to_message.from_user.id
-    try:
-        await revoke_key(target_id)
-        await message.reply("Ключ снят.")
-    except Exception as e:
-        await message.reply(f"Не удалось снять ключ: {e}")
+
+    target = message.reply_to_message.from_user
+    await revoke_key(target.id)
+    await message.reply_to_message.reply(f"🗝️ Ключ от сейфа снят с {mention_html(target.id, target.full_name)}.", parse_mode="HTML")
+
 
 
 async def handle_photo_command(message: types.Message):
@@ -1579,8 +1583,7 @@ async def handle_vault_stats(message: types.Message):
     circulating_s  = fmt_int(stats["circulating"])
     burned_s       = fmt_int(stats["burned"])
     vault_s        = fmt_int(stats["vault"])
-    supply_val = stats.get("supply", stats["cap"] - stats["burned"])
-    supply_s       = fmt_int(stats["supply"])
+    supply_s       = fmt_int(stats.get("supply", stats["cap"] - stats["burned"]))
     income_s       = fmt_int(stats["income"])  # это размер «зп/кражи» в нуарах
     bps_pct        = fmt_percent_bps(stats["burn_bps"])
     burned_pct     = (stats["burned"] / stats["cap"] * 100) if stats["cap"] > 0 else 0.0
