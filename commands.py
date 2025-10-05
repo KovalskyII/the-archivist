@@ -246,9 +246,13 @@ async def handle_message(message: types.Message):
         await handle_buy_perk(message, code)
         return
 
-    m = re.match(r"^выставить\s+(\S+)\s+(\d+)$", text_l)
+    # разместить лот: поддержка пробелов в ссылке, цена — последнее число
+    raw = message.text.strip()
+    m = re.match(r'^выставить\s+(.+?)\s+(\d+)\s*$', raw, flags=re.IGNORECASE | re.DOTALL)
     if m:
-        await handle_offer_create(message, m.group(1), int(m.group(2)))
+        link = m.group(1).strip()
+        price = int(m.group(2))
+        await handle_offer_create(message, link, price)
         return
 
     m = re.match(r"^купить\s+(\d+)$", text_l)
@@ -1475,7 +1479,6 @@ async def handle_buy_emerald(message: types.Message):
         await record_burn(burn, "emerald")
     # контракт/чек
     sale_id = await insert_history(buyer_id, "emerald_buy", price, None)
-    from datetime import datetime
     today = datetime.utcnow().strftime("%Y%m%d")
     contract_id = f"C-{today}-{sale_id}"
     await message.reply(
@@ -1521,7 +1524,6 @@ async def handle_buy_perk(message: types.Message, code: str):
 
     # чек
     sale_id = await insert_history(buyer_id, "perk_buy", price, code)
-    from datetime import datetime
     today = datetime.utcnow().strftime("%Y%m%d")
     contract_id = f"C-{today}-{sale_id}"
     emoji, title = PERK_REGISTRY[code]
@@ -1584,7 +1586,6 @@ async def handle_vault_stats(message: types.Message):
     burned_s       = fmt_int(stats["burned"])
     vault_s        = fmt_int(stats["vault"])
     supply_s       = fmt_int(stats.get("supply", stats["cap"] - stats["burned"]))
-    income_s       = fmt_int(stats["income"])  # это размер «зп/кражи» в нуарах
     bps_pct        = fmt_percent_bps(stats["burn_bps"])
     burned_pct     = (stats["burned"] / stats["cap"] * 100) if stats["cap"] > 0 else 0.0
     base  = await get_stipend_base()
@@ -1692,6 +1693,8 @@ async def handle_commands_catalog(message: types.Message):
         "обнулить баланс (reply) / обнулить балансы / обнулить клуб",
         "щедрость множитель <p> — множитель очков щедрости (в % от переводов/дождей)",
         "щедрость награда <N> — порог очков для автопремии (равной N нуарам)",
+        "щедрость статус - отображает индексы щедрости",
+        "щедрости очки (reply) - отображает очки участника"
         "цена пост <N> — стоимость утилиты «повесить пост»",
         "цена пост громкий <N> — стоимость утилиты «повесить громкий пост»",
         "установить код <слово> <сумма> — запустить игру «КОД-СЛОВО» в чате клуба",
@@ -1727,8 +1730,8 @@ async def handle_commands_catalog(message: types.Message):
         "получить жалование - ежедневная плата для всех членов Клуба",
     ]
     paid = [
-    "повесить пост (reply) — закрепить выбранное сообщение (стоимость в сейф)",
-    "повесить громкий пост (reply) — закрепить с уведомлением для всех (стоимость в сейф)",
+    "закрепить пост (reply) — закрепить выбранное сообщение",
+    "закрепить пост громко (reply) — закрепить с уведомлением для всех",
     ]
 
     txt = (
