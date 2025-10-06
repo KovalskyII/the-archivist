@@ -1650,7 +1650,7 @@ async def handle_vault_stats(message: types.Message):
 
 
     txt = (
-        "🏦 <b>ЭКОНОМИКА КЛУБА</b>\n"
+        "🏦 <b>ЭКОНОМИКА КЛУБА</b>\n\n"
         f"🧱 <b>КАП:</b> {cap_s}\n\n"
         f"🪙 <b>Текущий саплай:</b> {supply_s}\n\n" 
         f"🔐 <b>В сейфе:</b> {vault_s}\n\n"
@@ -1658,8 +1658,9 @@ async def handle_vault_stats(message: types.Message):
         f"🔥 <b>Сожжено:</b> {burned_s} ({burned_pct:.2f}%)\n\n"
         f"🧯 <b>Сжигание (налоги):</b> {bps_pct}\n\n"
         f"· · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · ·\n"
-        f"💼 <b>Жалование:</b> \n База  {fmt_money(base)} \nнадбавка {fmt_money(bonus)}\n"
-        f"🗡️ <b>Кража:</b> {fmt_money(theft)}"
+        f"<b>ИНДЕКСЫ и КОЭФФИЦИЕНТЫ</b>\n\n"
+        f"💼 <b>· Жалование:</b>\nБаза  {fmt_money(base)}\nНадбавка {fmt_money(bonus)}\n\n"
+        f"🗡️ <b>· Кража:</b> {fmt_money(theft)}"
     )
     await message.reply(txt, parse_mode="HTML")
 
