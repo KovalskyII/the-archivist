@@ -1604,7 +1604,7 @@ async def handle_vault_stats(message: types.Message):
         f"🔄 <b>На руках:</b> {circulating_s}\n\n"
         f"🔥 <b>Сожжено:</b> {burned_s} ({burned_pct:.2f}%)\n\n"
         f"🧯 <b>Сжигание (налоги):</b> {bps_pct}\n\n"
-        f"_____________________________________________\n\n"
+        f"--------------------------------------\n\n"
         f"💼 <b>Жалование:</b> база  {fmt_money(base)}| надбавка {fmt_money(bonus)}\n"
         f"🗡️ <b>Кража:</b> {fmt_money(theft)}"
     )
