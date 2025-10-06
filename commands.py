@@ -479,16 +479,16 @@ async def handle_message(message: types.Message):
             await message.reply(f"🛠️ Готово. Цена «закрепить пост громко»: {fmt_money(cur)}.")
             return
 
-        m = re.match(r"^установить\s+код\s+(\S+)\s+(\d+)$", text_l)
+        m = re.match(r"^установить\s+код\s+(\S+)\s+(\d+)\s*(.*)$", text_l)
         if m and author_id == KURATOR_ID:
-            # разрешаем запуск ТОЛЬКО в ЛС
             if message.chat.type != "private":
                 await message.reply("Загадывать код можно только в ЛС. Напишите мне в личку.")
                 return
 
             word = m.group(1)
             prize = int(m.group(2))
-            target_chat_id = CLUB_CHAT_ID  # всегда клубный чат
+            hint  = (m.group(3) or "").strip()
+            target_chat_id = CLUB_CHAT_ID
 
             cur = await codeword_get_active(target_chat_id)
             if cur:
@@ -498,11 +498,13 @@ async def handle_message(message: types.Message):
             await codeword_set(target_chat_id, word.lower(), prize, KURATOR_ID)
 
             try:
+                extra_hint = f"\nПодсказка: {html.escape(hint)}" if hint else ""
                 await message.bot.send_message(
                     target_chat_id,
-                    f"🧩 Начинается викторина КОД-СЛОВО!\n"
-                    f"Угадайте слово Куратора и получите {fmt_money(prize)}.\n\n"
-                    f"Подсказка: слово без учёта регистра и знаков. Пишите прямо сюда."
+                    "🧩 <b>Викторина «КОД-СЛОВО»</b>\n"
+                    f"Угадайте слово Куратора и получите {fmt_money(prize)}."
+                    + extra_hint,
+                    parse_mode="HTML"
                 )
                 await message.reply("Код установлен. Я объявил игру в Клубе — ждём угадывания там.")
             except Exception as e:
@@ -511,6 +513,7 @@ async def handle_message(message: types.Message):
                     f"Проверь права бота и CLUB_CHAT_ID."
                 )
             return
+
 
 
         if text_l == "отменить код" and author_id == KURATOR_ID:
