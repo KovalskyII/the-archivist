@@ -282,7 +282,6 @@ async def get_perk_holders(perk_code: str) -> List[int]:
     return [uid for uid, has in state.items() if has]
 
 async def get_perks_summary() -> List[Tuple[str, int]]:
-    # по всем кодам, которые встречались
     async with aiosqlite.connect(DB_PATH) as db:
         async with db.execute("""
             SELECT DISTINCT reason FROM history
@@ -292,9 +291,10 @@ async def get_perks_summary() -> List[Tuple[str, int]]:
     out = []
     for code in sorted(set([c.strip().lower() for c in codes if c])):
         holders = await get_perk_holders(code)
-        out.append((code, len(holders)))
+        cnt = len(holders)
+        if cnt > 0:              # <-- скрываем пустые
+            out.append((code, cnt))
     return out
-
 # ------- ЗП/кража кулдауны -------
 
 async def get_seconds_since_last_salary_claim(user_id: int, perk_code: str = "зп") -> int | None:
