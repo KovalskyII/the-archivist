@@ -498,10 +498,10 @@ async def handle_message(message: types.Message):
             await codeword_set(target_chat_id, word.lower(), prize, KURATOR_ID)
 
             try:
-                extra_hint = f"\nПодсказка: {html.escape(hint)}" if hint else ""
+                extra_hint = f"\n<b>Подсказка:</b> {html.escape(hint)}" if hint else ""
                 await message.bot.send_message(
                     target_chat_id,
-                    "🧩 <b>Викторина «КОД-СЛОВО»</b>\n"
+                    "🧩 <b>Викторина «КОД-СЛОВО»</b>\n\n"
                     f"Угадайте слово Куратора и получите {fmt_money(prize)}."
                     + extra_hint,
                     parse_mode="HTML"
