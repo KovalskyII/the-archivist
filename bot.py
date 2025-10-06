@@ -41,6 +41,16 @@ if AIOMAJOR >= 3:
             return
         await handle_message(message)
 
+    ### ТЕСТОВЫЕ КОМАНДЫ 1/2 ----------------------------
+    from aiogram import F
+    from commands import handle_test_commands_callback
+    from aiogram.types import CallbackQuery
+
+    @router.callback_query(F.data.startswith("tc:"))
+    async def on_test_commands_cb(call: CallbackQuery):
+        await handle_test_commands_callback(call)
+    ### -------------------------------------------------
+
     async def main():
         await init_db()
         dp.include_router(router)
@@ -69,6 +79,16 @@ else:
             await handle_photo_command(message)
         elif message.text:
             await handle_message(message)
+
+    ### ТЕСТОВЫЕ КОМАНДЫ 1/2 -------------------------------------------------
+    from aiogram import types
+    from commands import handle_test_commands_callback
+
+    @dp.callback_query_handler(lambda c: c.data and c.data.startswith("tc:"))
+    async def on_test_commands_cb(call: types.CallbackQuery):
+        await handle_test_commands_callback(call)
+    ### ----------------------------------------------------------------------
+
 
     async def on_startup(_):
         await init_db()
