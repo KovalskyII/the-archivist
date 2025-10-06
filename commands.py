@@ -280,46 +280,6 @@ async def handle_message(message: types.Message):
         await handle_vault_stats(message)
         return
 
-    # конфиги
-    m = re.match(r"^сжигание\s+(\d+)$", text_l)
-    if m:
-        await handle_burn_bps_set(message, int(m.group(1)))
-        return
-
-    m = re.match(r"^цена\s+эмеральд\s+(\d+)$", text_l)
-    if m:
-        await handle_price_emerald_set(message, int(m.group(1)))
-        return
-
-    m = re.match(r"^цена\s+перк\s+(\S+)\s+(\d+)$", text_l)
-    if m:
-        await handle_price_perk_set(message, m.group(1), int(m.group(2)))
-        return
-
-    m = re.match(r"^множитель\s+(кубик|дартс|боулинг|автоматы)\s+(\d+)$", text_l)
-    if m:
-        await handle_multiplier_set(message, m.group(1), int(m.group(2)))
-        return
-
-    if text_l in ("казино открыть", "казино закрыть"):
-        await handle_casino_toggle(message)
-        return
-
-    m = re.match(r"^кража\s+(\d+)$", text_l)
-    if m:
-        await handle_income_set(message, int(m.group(1)))
-        return
-
-    m = re.match(r"^лимит\s+ставка\s+(\d+)$", text_l)
-    if m:
-        await handle_limit_bet_set(message, int(m.group(1)))
-        return
-
-    m = re.match(r"^лимит\s+дождь\s+(\d+)$", text_l)
-    if m:
-        await handle_limit_rain_set(message, int(m.group(1)))
-        return
-
     # держатели перка / реестр
     m = re.match(r"^(?:у кого перк|держатели перка)\s+(\S+)$", text_l)
     if m:
@@ -550,6 +510,77 @@ async def handle_message(message: types.Message):
                     pass
             else:
                 await message.reply("Активной игры в Клубе нет.")
+            return
+
+        # сжигание <bps>
+        m = re.match(r"^сжигание\s+(\d+)$", text_l)
+        if m:
+            await set_burn_bps(int(m.group(1)))
+            cur = await get_burn_bps()
+            await message.reply(f"🛠️ Готово. Сжигание установлено на {fmt_percent_bps(cur)}.")
+            return
+
+        # цена эмеральд <N>
+        m = re.match(r"^цена\s+эмеральд\s+(\d+)$", text_l)
+        if m:
+            v = int(m.group(1))
+            await set_price_emerald(v)
+            cur = await get_price_emerald()
+            await message.reply(f"🛠️ Готово. Цена Эмеральда: {fmt_money(cur)}.")
+            return
+
+        # цена перк <код> <N>
+        m = re.match(r"^цена\s+перк\s+(\S+)\s+(\d+)$", text_l)
+        if m:
+            code = m.group(1).strip().lower()
+            v = int(m.group(2))
+            if code not in PERK_REGISTRY:
+                await message.reply("Такого перка нет.")
+                return
+            await set_price_perk(code, v)
+            cur = await get_price_perk(code)
+            await message.reply(f"🛠️ Готово. Цена перка «{PERK_REGISTRY[code][1]}»: {fmt_money(cur)}.")
+            return
+
+        # множитель <игра> <X>
+        m = re.match(r"^множитель\s+(кубик|дартс|боулинг|автоматы)\s+(\d+)$", text_l)
+        if m:
+            game = m.group(1)
+            x = int(m.group(2))
+            await set_multiplier(game, x)
+            await message.reply(f"🛠️ Готово. Множитель для «{game}»: ×{x}.")
+            return
+
+        # казино открыть|закрыть
+        if text_l in ("казино открыть", "казино закрыть"):
+            turn_on = text_l.endswith("открыть")
+            await set_casino_on(turn_on)
+            await message.reply("🎰 Казино открыто." if turn_on else "🎰 Казино закрыто.")
+            return
+
+        # кража <N>
+        m = re.match(r"^кража\s+(\d+)$", text_l)
+        if m:
+            v = int(m.group(1))
+            await set_income(v)
+            cur = await get_income()
+            await message.reply(f"🛠️ Готово. Сумма удачной кражи: {fmt_money(cur)}.")
+            return
+
+        # лимит ставка <N>
+        m = re.match(r"^лимит\s+ставка\s+(\d+)$", text_l)
+        if m:
+            v = int(m.group(1))
+            await set_limit_bet(v)
+            await message.reply("🛠️ Лимит ставки отключён." if v == 0 else f"🛠️ Лимит ставки: {fmt_int(v)}.")
+            return
+
+        # лимит дождь <N>
+        m = re.match(r"^лимит\s+дождь\s+(\d+)$", text_l)
+        if m:
+            v = int(m.group(1))
+            await set_limit_rain(v)
+            await message.reply("🛠️ Лимит дождя отключён." if v == 0 else f"🛠️ Лимит дождя: {fmt_money(v)}.")
             return
 
 
