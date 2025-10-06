@@ -100,7 +100,7 @@ def fmt_int(n: int) -> str:
     return f"{n:,}"
 
 def fmt_money(n: int) -> str:
-    return f"🪙{fmt_int(n)} нуаров"
+    return f"{fmt_int(n)} 🪙"
 
 def fmt_percent_bps(bps: int) -> str:
     # 100 bps = 1%
@@ -1656,11 +1656,12 @@ async def handle_vault_stats(message: types.Message):
         f"🔐 <b>В сейфе:</b> {vault_s}\n\n"
         f"🔄 <b>На руках:</b> {circulating_s}\n\n"
         f"🔥 <b>Сожжено:</b> {burned_s} ({burned_pct:.2f}%)\n\n"
-        f"🧯 <b>Сжигание (налоги):</b> {bps_pct}\n\n"
+        
         f"· · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · ·\n"
         f"<b>ИНДЕКСЫ и КОЭФФИЦИЕНТЫ</b>\n\n"
-        f"💼 <b>· Жалование:</b>\nБаза  {fmt_money(base)}\nНадбавка {fmt_money(bonus)}\n\n"
-        f"🗡️ <b>· Кража:</b> {fmt_money(theft)}"
+        f"🧯 <b>Сжигание (налоги):</b> {bps_pct}\n\n"
+        f"💼 <b>Жалование:</b>\n·База: {fmt_money(base)}\n·Надбавка: {fmt_money(bonus)}\n\n"
+        f"🗡️ <b>Кража:</b> {fmt_money(theft)}"
     )
     await message.reply(txt, parse_mode="HTML")
 
