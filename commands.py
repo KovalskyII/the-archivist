@@ -1660,7 +1660,7 @@ async def handle_vault_stats(message: types.Message):
         f"· · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · ·\n"
         f"<b>ИНДЕКСЫ и КОЭФФИЦИЕНТЫ</b>\n\n"
         f"🧯 <b>Сжигание (налоги):</b> {bps_pct}\n\n"
-        f"💼 <b>Жалование:</b>\n·База: {fmt_money(base)}\n·Надбавка: {fmt_money(bonus)}\n\n"
+        f"💼 <b>Жалование:</b>\n· База: {fmt_money(base)}\n· Надбавка: {fmt_money(bonus)}\n\n"
         f"🗡️ <b>Кража:</b> {fmt_money(theft)}"
     )
     await message.reply(txt, parse_mode="HTML")
