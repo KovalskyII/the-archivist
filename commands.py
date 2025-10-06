@@ -1660,7 +1660,7 @@ async def handle_vault_stats(message: types.Message):
         f"🔄 <b>На руках:</b> {circulating_s}\n"
         f"🔥 <b>Сожжено:</b> {burned_s} ({burned_pct:.2f}%)\n"
         
-        f"· · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · ·  \n"
+        f"· · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · ·\n"
         f"<b>ИНДЕКСЫ и КОЭФФИЦИЕНТЫ</b>\n\n"
         f"🧯 <b>Сжигание (налоги):</b> {bps_pct}\n"
         f"💼 <b>Жалование:</b>\n· База: {fmt_money(base)}\n· Надбавка: {fmt_money(bonus)}\n"
