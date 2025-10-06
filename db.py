@@ -652,6 +652,32 @@ async def hero_record_claim(chat_id: int, user_id: int, amount: int):
     """Фиксируем разовый гонорар героя дня в конкретном чате."""
     await insert_history(user_id, "hero_claim", amount, f"chat_id={chat_id}")
 
+async def hero_get_current_with_until(chat_id: int) -> tuple[int | None, datetime | None]:
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("""
+            SELECT user_id, reason FROM history
+            WHERE action='hero_set' AND reason LIKE ?
+            ORDER BY id DESC LIMIT 20
+        """, (f"%chat_id={chat_id}%",)) as cur:
+            rows = await cur.fetchall()
+
+    now = _utc_now()
+    for uid, reason in rows:
+        until = None
+        for part in (reason or "").split(";"):
+            p = part.strip()
+            if p.startswith("until="):
+                try:
+                    until = datetime.fromisoformat(p.split("=",1)[1])
+                except Exception:
+                    until = None
+        if until and now < until:
+            return int(uid), until
+        if until:
+            break
+    return None, None
+
+
 
 # ==== NEW: жалование/надбавка ====
 CFG_STIPEND_BASE   = "stipend_base"    # базовое жалование всем

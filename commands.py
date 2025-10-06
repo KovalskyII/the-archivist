@@ -24,7 +24,7 @@ from db import (
     codeword_set, codeword_cancel_active, set_generosity_mult_pct,
     set_generosity_threshold, set_price_pin, set_price_pin_loud,
     insert_history, get_circulating, get_price_pin, get_price_pin_loud,
-    get_generosity_points, get_generosity_threshold,
+    get_generosity_points, get_generosity_threshold, hero_get_current_with_until,
 
     # анти-дубль
     is_msg_processed, mark_msg_processed,
@@ -1367,7 +1367,10 @@ async def handle_market_show(message: types.Message):
             f"Команда покупки: купить лот {offer_id}"
         )
 
-    turnover_line = f"📈 Оборот: 24ч — {fmt_money(t24)}, 7д — {fmt_money(t7)}, 30д — {fmt_money(t30)}"
+    turnover_line = (
+        f"📈 <b>Оборот</b>: 24ч — {fmt_money(t24)} • 7д — {fmt_money(t7)} • 30д — {fmt_money(t30)}"
+    )
+    burn_line = f"🔥 <b>Сжигание на рынке</b>: {fmt_percent_bps(burn_bps)}"
 
     txt = (
         "🛒 <b>РЫНОК</b>\n\n"
@@ -1380,7 +1383,7 @@ async def handle_market_show(message: types.Message):
         ("\n\n".join(offer_blocks) if offer_blocks else "Пока нет активных лотов.") +
         "\n\n" +
         turnover_line + "\n" +
-        f"🔥 Сжигание на рынке(налог): {fmt_percent_bps(burn_bps)} (округление вниз)"
+        burn_line
     )
 
     await message.reply(txt, parse_mode="HTML")
@@ -1601,7 +1604,7 @@ async def handle_vault_stats(message: types.Message):
         f"🔄 <b>На руках:</b> {circulating_s}\n\n"
         f"🔥 <b>Сожжено:</b> {burned_s} ({burned_pct:.2f}%)\n\n"
         f"🧯 <b>Сжигание (налоги):</b> {bps_pct}\n\n"
-        f"💼 <b>Жалование:</b> база  {fmt_money(base)}, надбавка {fmt_money(bonus)}\n"
+        f"💼 <b>Жалование:</b> база  {fmt_money(base)}| надбавка {fmt_money(bonus)}\n"
         f"🗡️ <b>Кража:</b> {fmt_money(theft)}"
     )
     await message.reply(txt, parse_mode="HTML")
@@ -1612,11 +1615,12 @@ async def handle_vault_stats(message: types.Message):
 
 async def handle_burn_bps_set(message: types.Message, v: int):
     await set_burn_bps(v)
-    await message.reply(f"Сжигание рынка установлено: {fmt_percent_bps(await get_burn_bps())}")
+    cur = await get_burn_bps()
+    await message.reply(f"🛠️ Готово. Сжигание установлено на {fmt_percent_bps(cur)}.")
 
 async def handle_price_emerald_set(message: types.Message, v: int):
     await set_price_emerald(v)
-    await message.reply(f"Цена эмеральда: {fmt_money(v)}.")
+    await message.reply(f"🛠️ Готово. Цена Эмеральда: {fmt_money(v)}.")
 
 async def handle_price_perk_set(message: types.Message, code: str, v: int):
     code = code.strip().lower()
@@ -1624,11 +1628,11 @@ async def handle_price_perk_set(message: types.Message, code: str, v: int):
         await message.reply("Такого перка нет.")
         return
     await set_price_perk(code, v)
-    await message.reply(f"Цена перка «{PERK_REGISTRY[code][1]}»: {fmt_money(v)}.")
+    await message.reply(f"🛠️ Готово. Цена перка «{PERK_REGISTRY[code][1]}»: {fmt_money(v)}.")
 
 async def handle_multiplier_set(message: types.Message, game: str, x: int):
     await set_multiplier(game, x)
-    await message.reply(f"Множитель для «{game}» установлен: ×{x}")
+    await message.reply(f"🛠️ Готово. Множитель для «{game}»: ×{x}.")
 
 async def handle_casino_toggle(message: types.Message):
     turn_on = message.text.strip().endswith("открыть")
@@ -1637,15 +1641,16 @@ async def handle_casino_toggle(message: types.Message):
 
 async def handle_income_set(message: types.Message, v: int):
     await set_income(v)
-    await message.reply(f"Сумма удачной кражи установлена: {fmt_money(v)}.")
+    await message.reply(f"🛠️ Готово. Сумма удачной кражи: {fmt_money(v)}.")
 
 async def handle_limit_bet_set(message: types.Message, v: int):
     await set_limit_bet(v)
-    await message.reply("Лимит ставки отключён." if v == 0 else f"Лимит ставки: {v}.")
+    await message.reply("🛠️ Лимит ставки отключён." if v == 0 else f"🛠️ Лимит ставки: {fmt_int(v)}.")
 
 async def handle_limit_rain_set(message: types.Message, v: int):
     await set_limit_rain(v)
-    await message.reply("Лимит дождя отключён." if v == 0 else f"Лимит дождя: {v}.")
+    await message.reply("🛠️ Лимит дождя отключён." if v == 0 else f"🛠️ Лимит дождя: {fmt_money(v)}.")
+
 
 # --------- «карман» куратора ---------
 
@@ -1749,21 +1754,32 @@ async def handle_commands_catalog(message: types.Message):
 async def handle_hero_of_day(message: types.Message):
     chat_id = message.chat.id
 
-    # уже выбран сегодня?
-    current = await hero_get_current(chat_id)
+    current, until = await hero_get_current_with_until(chat_id)
     if current is not None:
-        # покажем кто сегодня «Певец дня»
         try:
             member = await message.bot.get_chat_member(chat_id, current)
             name = member.user.full_name or "Участник"
         except Exception:
             name = "Участник"
+
+        # красивое КД
+        from datetime import timezone
+        now = datetime.now(timezone.utc)
+        remain = until - now if until else None
+        cd_line = ""
+        if remain and remain.total_seconds() > 0:
+            total = int(remain.total_seconds())
+            h = total // 3600
+            m = (total % 3600) // 60
+            cd_line = f"\nОставшееся время: <b>{h}ч {m}м</b>."
+
         await message.reply(
             f"🎤 Сегодня выступает — {mention_html(current, name)}.\n"
-            f"Команда для {HERO_TITLE.lower()}: «выступить».",
+            f"Команда для {HERO_TITLE.lower()}: «выступить».{cd_line}",
             parse_mode="HTML"
         )
         return
+
 
     # выбираем случайного участника (не бота, в чате, из известных)
     candidates = []
