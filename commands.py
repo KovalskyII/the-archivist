@@ -341,18 +341,22 @@ async def handle_message(message: types.Message):
                 await message.reply(f"Ошибка чтения очков: {e}")
             return
 
-        # множитель %
-        m = re.match(r"^щедрость\s+множитель\s+(\d+)\s*$", text_l)
+        # щедрость множитель <p>
+        m = re.match(r"^щедрость\s+множитель\s+(\д+)\s*$", text_l)
         if m:
-            await set_generosity_mult_pct(int(m.group(1)))
-            await message.reply("Множитель щедрости сохранён.")
+            v = int(m.group(1))
+            await set_generosity_mult_pct(v)
+            cur = await get_generosity_mult_pct()
+            await message.reply(f"🛠️ Готово. Множитель щедрости: {cur}%.")
             return
 
-        # порог награды (сколько очков нужно для автопремии)
-        m = re.match(r"^щедрость\s+награда\s+(\d+)\s*$", text_l)
+        # щедрость награда <N>
+        m = re.match(r"^щедрость\s+награда\s+(\д+)\s*$", text_l)
         if m:
-            await set_generosity_threshold(int(m.group(1)))
-            await message.reply("Порог награды щедрости сохранён.")
+            v = int(m.group(1))
+            await set_generosity_threshold(v)
+            cur = await get_generosity_threshold()
+            await message.reply(f"🛠️ Готово. Порог награды щедрости: {fmt_money(cur)}.")
             return
 
         # обнуление очков конкретному участнику (reply)
@@ -442,27 +446,37 @@ async def handle_message(message: types.Message):
 
         m = re.match(r"^жалование\s+база\s+(\d+)$", text_l)
         if m:
-            await set_stipend_base(int(m.group(1)))
-            await message.reply("Базовое жалование обновлено.")
+            v = int(m.group(1))
+            await set_stipend_base(v)
+            cur = await get_stipend_base()
+            await message.reply(f"🛠️ Готово. База жалования: {fmt_money(cur)}.")
             return
 
-        m = re.match(r"^жалование\s+надбавка\s+(\d+)$", text_l)
+        # жалование надбавка <N>
+        m = re.match(r"^жалование\s+надбавка\s+(\д+)$", text_l)
         if m:
-            await set_stipend_bonus(int(m.group(1)))
-            await message.reply("Надбавка к жалованию обновлена.")
+            v = int(m.group(1))
+            await set_stipend_bonus(v)
+            cur = await get_stipend_bonus()
+            await message.reply(f"🛠️ Готово. Надбавка к жалованию: {fmt_money(cur)}.")
             return
 
-
-        m = re.match(r"^цена\s+пост\s+(\d+)$", text_l)
+        # цена пост <N>
+        m = re.match(r"^цена\s+пост\s+(\д+)$", text_l)
         if m:
-            await set_price_pin(int(m.group(1)))
-            await message.reply("Цена «повесить пост» обновлена.")
+            v = int(m.group(1))
+            await set_price_pin(v)
+            cur = await get_price_pin()
+            await message.reply(f"🛠️ Готово. Цена «закрепить пост»: {fmt_money(cur)}.")
             return
 
-        m = re.match(r"^цена\s+громкий\s+пост\s+(\d+)$", text_l)
+        # цена громкий пост <N>
+        m = re.match(r"^цена\s+громкий\s+пост\s+(\д+)$", text_l)
         if m:
-            await set_price_pin_loud(int(m.group(1)))
-            await message.reply("Цена «повесить громко» обновлена.")
+            v = int(m.group(1))
+            await set_price_pin_loud(v)
+            cur = await get_price_pin_loud()
+            await message.reply(f"🛠️ Готово. Цена «закрепить пост громко»: {fmt_money(cur)}.")
             return
 
         m = re.match(r"^установить\s+код\s+(\S+)\s+(\d+)$", text_l)
