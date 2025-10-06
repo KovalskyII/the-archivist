@@ -1794,8 +1794,8 @@ async def handle_commands_catalog(message: types.Message):
         "выступить - команда Героя Дня, разовый гонорар",
     ]
     paid = [
-    "закрепить пост (reply) — закрепить выбранное сообщение:{fmt_money(price_pin)}",
-    "закрепить пост громко (reply) — закрепить с уведомлением для всех:{fmt_money(price_pin_loud)}",
+    f"закрепить пост (reply) — закрепить выбранное сообщение:{fmt_money(price_pin)}",
+    f"закрепить пост громко (reply) — закрепить с уведомлением для всех:{fmt_money(price_pin_loud)}",
     ]
 
     txt = (
