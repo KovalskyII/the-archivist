@@ -453,7 +453,7 @@ async def handle_message(message: types.Message):
             return
 
         # жалование надбавка <N>
-        m = re.match(r"^жалование\s+надбавка\s+(\д+)$", text_l)
+        m = re.match(r"^жалование\s+надбавка\s+(\d+)$", text_l)
         if m:
             v = int(m.group(1))
             await set_stipend_bonus(v)
@@ -462,7 +462,7 @@ async def handle_message(message: types.Message):
             return
 
         # цена пост <N>
-        m = re.match(r"^цена\s+пост\s+(\д+)$", text_l)
+        m = re.match(r"^цена\s+пост\s+(\d+)$", text_l)
         if m:
             v = int(m.group(1))
             await set_price_pin(v)
