@@ -471,7 +471,7 @@ async def handle_message(message: types.Message):
             return
 
         # цена громкий пост <N>
-        m = re.match(r"^цена\s+громкий\s+пост\s+(\д+)$", text_l)
+        m = re.match(r"^цена\s+громкий\s+пост\s+(\d+)$", text_l)
         if m:
             v = int(m.group(1))
             await set_price_pin_loud(v)
