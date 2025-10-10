@@ -502,7 +502,7 @@ async def handle_message(message: types.Message):
                 await message.bot.send_message(
                     target_chat_id,
                     "🧩 <b>Викторина «КОД-СЛОВО»</b>\n\n"
-                    f"Угадайте слово Куратора и получите {fmt_money(prize)}."
+                    f"Угадайте слово, загаданное Куратором и получите {fmt_money(prize)}."
                     + extra_hint,
                     parse_mode="HTML"
                 )
@@ -1377,7 +1377,7 @@ async def handle_market_show(message: types.Message):
     perk_blocks = []
     for code, (emoji, title) in PERK_REGISTRY.items():
         price = await get_price_perk(code)
-        price_str = f"🪙{fmt_int(price)} нуаров" if price is not None else "не продаётся"
+        price_str = f"{fmt_int(price)} 🪙" if price is not None else "не продаётся"
 
         # для витрины убираем приписки в скобках только визуально
         title_base = title.split(" (", 1)[0]
