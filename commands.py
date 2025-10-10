@@ -1442,7 +1442,21 @@ async def handle_market_show(message: types.Message):
         burn_line
     )
 
-    await message.reply(txt, parse_mode="HTML")
+    try:
+        # aiogram v3
+        await message.reply(
+            txt,
+            parse_mode="HTML",
+            link_preview_options=types.LinkPreviewOptions(is_disabled=True)
+        )
+    except TypeError:
+        # aiogram v2
+        await message.reply(
+            txt,
+            parse_mode="HTML",
+            disable_web_page_preview=True
+        )
+
 
 
 async def handle_offer_create(message: types.Message, link: str, price: int):
@@ -1927,7 +1941,7 @@ async def _pin_paid(message: types.Message, loud: bool):
             message_id=message.reply_to_message.message_id,
             disable_notification=not loud  # тихий = True, громкий = False
         )
-        await message.reply("Сообщение закреплено.")
+        await message.reply(f"Сообщение закреплено. С вас снято: {fmt_money(price)}")
     except Exception as e:
         await message.reply(f"Не удалось закрепить: {e}")
 
