@@ -82,11 +82,11 @@ else:
 
     ### ТЕСТОВЫЕ КОМАНДЫ 1/2 -------------------------------------------------
     from aiogram import types
-    from commands import handle_test_commands_callback
+    from commands import handle_commands_test_callback
 
     @dp.callback_query_handler(lambda c: c.data and c.data.startswith("tc:"))
     async def on_test_commands_cb(call: types.CallbackQuery):
-        await handle_test_commands_callback(call)
+        await handle_commands_test_callback(call)
     ### ----------------------------------------------------------------------
 
 
