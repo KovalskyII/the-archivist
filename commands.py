@@ -748,7 +748,7 @@ async def handle_rating(message: types.Message):
     if not rows:
         await message.reply("Ни у кого в клубе нет нуаров.")
         return
-    lines = ["💰 <b>Богатейшие члены Клуба Le Cadeau Noir:</b>\n\n"]
+    lines = ["💰 <b>Богатейшие члены Клуба Le Cadeau Noir:</b>\n"]
     for i, (user_id, balance) in enumerate(rows, start=1):
         name = "Участник"
         try:
