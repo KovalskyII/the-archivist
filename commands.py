@@ -603,7 +603,7 @@ async def handle_message(message: types.Message):
 
         # ТЕСТОВЫЕ КОМАНДЫ ------------------------
         if text_l == "тестовые команды" or "тестовая команда":
-            await handle_test_commands(message)
+            await handle_commands_test(message)
             return
         # -----------------------------------------
 
