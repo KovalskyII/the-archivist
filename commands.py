@@ -602,7 +602,7 @@ async def handle_message(message: types.Message):
 
 
         # ТЕСТОВЫЕ КОМАНДЫ ------------------------
-        if text_l == "тестовые команды":
+        if text_l == "тестовые команды" or "тестовая команда":
             await handle_test_commands(message)
             return
         # -----------------------------------------
@@ -1959,141 +1959,130 @@ async def _generosity_reset_points_for(user_id: int) -> int:
 
 
 # ===== ТЕСТОВЫЕ КОМАНДЫ (постраничный список) =====
-from aiogram import types
-from aiogram.utils.keyboard import InlineKeyboardBuilder
+# ===== ПАГИНИРУЕМЫЙ СПИСОК КОМАНД (2 страницы) =====
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 
-TEST_CMD_PAGES = ["общее", "ключ", "рынок", "перки", "игры", "платные", "сейф", "щедрость", "куратор"]
+def _commands_test_kb(page: int, uid: int) -> InlineKeyboardMarkup:
+    prev_btn = InlineKeyboardButton(text="◀️", callback_data=f"cmdpg:{uid}:{page-1}")
+    next_btn = InlineKeyboardButton(text="▶️", callback_data=f"cmdpg:{uid}:{page+1}")
+    close_btn = InlineKeyboardButton(text="✖️ Закрыть", callback_data=f"cmdpg:{uid}:close")
+    indicator = InlineKeyboardButton(text=f"{page}/2", callback_data="noop")
+    if page == 1:
+        row1 = [indicator, next_btn]
+    else:
+        row1 = [prev_btn, indicator]
+    return InlineKeyboardMarkup(inline_keyboard=[row1, [close_btn]])
 
-async def _render_test_page_text(page: str) -> str:
-    # подставим «живые» значения там, где уместно
-    if page == "платные":
-        price_pin = await get_price_pin()
-        price_pin_loud = await get_price_pin_loud()
-        return (
-            "💳 <b>Платные</b>\n"
-            f"• повесить пост (reply) — закрепить выбранное сообщение — цена: {fmt_money(price_pin)}\n"
-            f"• повесить громкий пост (reply) — с уведомлением — цена: {fmt_money(price_pin_loud)}"
-        )
-    if page == "рынок":
-        price_emerald = await get_price_emerald()
-        return (
-            "🛒 <b>Рынок</b>\n"
-            "• рынок — витрина\n"
-            "• купить эмеральд — покупка эмеральда\n"
-            f"Текущая цена эмеральда: {fmt_money(price_emerald)}\n"
-            "• выставить &lt;ссылка&gt; &lt;цена&gt; / снять лот &lt;id&gt; / купить лот &lt;id&gt;\n"
-            "• купить перк &lt;код&gt;"
-        )
-    if page == "общее":
-        return (
-            "📜 <b>Общее</b>\n"
-            "• список команд / команды / /help\n"
-            "• мой карман / моя роль / роль (reply)\n"
-            "• рейтинг клуба / члены клуба / хранители ключа\n"
-            "• передать &lt;N&gt; (reply) / дождь &lt;N&gt;"
-        )
-    if page == "ключ":
-        return (
-            "🗝 <b>Владельцы ключа</b>\n"
-            "• вручить &lt;N&gt; (reply) — выдать из сейфа\n"
-            "• взыскать &lt;N&gt; (reply) — забрать в сейф\n"
-            "• карман (reply) — посмотреть баланс участника"
-        )
-    if page == "перки":
-        return (
-            "🎖 <b>Перки</b>\n"
-            "• мои перки / перки (reply)\n"
-            "• купить перк &lt;код&gt;\n"
-            "• у кого перк &lt;код&gt; / перки реестр"
-        )
-    if page == "игры":
-        return (
-            "🎲 <b>Игры</b>\n"
-            "• ставлю &lt;N&gt; на 🎲|кубик | 🎯|дартс | 🎳|боулинг | 🎰|автоматы"
-        )
-    if page == "сейф":
-        return (
-            "🏦 <b>Сейф</b>\n"
-            "• сейф — сводка экономики клуба"
-        )
-    if page == "щедрость":
-        mult = await get_generosity_mult_pct()
-        thr  = await get_generosity_threshold()
-        return (
-            "🎁 <b>Щедрость</b>\n"
-            "• начисляется при переводах и дожде\n"
-            f"Текущие настройки: множитель {mult}% | порог награды {fmt_money(thr)}\n"
-            "• получить жалование — влияет перк «надбавка»"
-        )
-    if page == "куратор":
-        return (
-            "👑 <b>Куратор</b>\n"
-            "• назначить \"роль\" &lt;описание&gt; (reply) / снять роль (reply)\n"
-            "• ключ от сейфа (reply) / снять ключ (reply)\n"
-            "• обнулить баланс (reply) / обнулить балансы / обнулить клуб\n"
-            "• щедрость множитель &lt;p&gt; / щедрость награда &lt;N&gt;\n"
-            "• включить сейф &lt;CAP&gt; / перезапустить сейф &lt;CAP&gt; подтверждаю\n"
-            "• сжигание &lt;bps&gt; / цена эмеральд &lt;N&gt; / цена перк &lt;код&gt; &lt;N&gt;\n"
-            "• множитель кубик|дартс|боулинг|автоматы &lt;X&gt; / казино открыть|закрыть\n"
-            "• кража &lt;N&gt; / лимит ставка &lt;N&gt; / лимит дождь &lt;N&gt;\n"
-            "• цена пост &lt;N&gt; / цена громкий пост &lt;N&gt;\n"
-            "• установить код &lt;слово&gt; &lt;сумма&gt; [подсказка] / отменить код"
-        )
-    return "—"
+async def _render_commands_test_page(page: int) -> str:
+    # берём живые цены на утилиты
+    price_pin = await get_price_pin()
+    price_pin_loud = await get_price_pin_loud()
 
-def _test_cmd_kb(owner_id: int, page_idx: int) -> types.InlineKeyboardMarkup:
-    b = InlineKeyboardBuilder()
-    prev_i = (page_idx - 1) % len(TEST_CMD_PAGES)
-    next_i = (page_idx + 1) % len(TEST_CMD_PAGES)
-    b.button(text="⬅️", callback_data=f"tc:{owner_id}:{prev_i}")
-    b.button(text=f"{page_idx+1}/{len(TEST_CMD_PAGES)}", callback_data="tc:nop")
-    b.button(text="➡️", callback_data=f"tc:{owner_id}:{next_i}")
-    b.adjust(3)
-    return b.as_markup()
+    if page == 1:
+        # все + владельцы ключа
+        members = [
+            "мой карман — ваш баланс",
+            "моя роль / роль (reply) — роли",
+            "рейтинг клуба / члены клуба / хранители ключа",
+            "передать <N> (reply) — перевод",
+            "дождь <N> — раздать до 5 случайным",
+            "ставлю <N> на 🎲|кубик / 🎯|дартс / 🎳|боулинг / 🎰|автоматы",
+            "рынок — витрина, «купить эмеральд/перк/лот», «выставить/снять лот»",
+            "мои перки / перки (reply)",
+            "получить жалование / украсть|своровать (reply)",
+            "сейф — сводка экономики",
+            "концерт / выступить",
+            f"повесить пост (reply) — {fmt_money(price_pin)}",
+            f"повесить громкий пост (reply) — {fmt_money(price_pin_loud)}",
+        ]
+        keyholders = [
+            "вручить <N> (reply) — выдать из сейфа",
+            "взыскать <N> (reply) — забрать в сейф",
+            "карман (reply) — баланс участника",
+        ]
+        return (
+            "📜 <b>КОМАНДЫ — СТРАНИЦА 1/2</b>\n\n"
+            "🎭 <b>Для всех</b>\n" + bullets(members) + "\n\n"
+            "🗝 <b>Владельцы ключа</b>\n" + bullets(keyholders)
+        )
+    else:
+        # куратор
+        curator_blocks = [
+            ("🏦 Сейф/экономика", [
+                "включить сейф <CAP> / перезапустить сейф <CAP> подтверждаю",
+                "сейф — сводка экономики",
+                "сжигание <bps> — 100 bps = 1%",
+                "кража <N> — сумма удачной кражи",
+            ]),
+            ("🎰 Казино", [
+                "казино открыть|закрыть",
+                "множитель кубик|дартс|боулинг|автоматы <X>",
+                "лимит ставка <N> / лимит дождь <N>",
+            ]),
+            ("💎 Рынок и цены", [
+                "цена эмеральд <N>",
+                "цена перк <код> <N>",
+                "цена пост <N> / цена громкий пост <N>",
+            ]),
+            ("🎖 Перки", [
+                "у кого перк <код> / перки реестр",
+                "даровать <код> (reply) / уничтожить <код> (reply)",
+            ]),
+            ("🎭 Роли и ключи", [
+                "назначить \"Роль\" описание (reply) / снять роль (reply)",
+                "ключ от сейфа (reply) / снять ключ (reply)",
+            ]),
+            ("🧹 Сбросы/служебные", [
+                "обнулить баланс (reply) / обнулить балансы / обнулить клуб",
+            ]),
+            ("🎁 Жалование и щедрость", [
+                "жалование база <N> / жалование надбавка <N>",
+                "щедрость множитель <p>% / щедрость награда <N>",
+                "щедрость статус / щедрость очки / щедрость обнулить (reply)",
+                "щедрость обнулить все подтверждаю",
+            ]),
+            ("🧩 Код-слово", [
+                "установить код <слово> <сумма> <подсказка>",
+                "отменить код",
+            ]),
+        ]
+        parts = [f"📜 <b>КОМАНДЫ — СТРАНИЦА 2/2</b>"]
+        for title, items in curator_blocks:
+            parts.append(f"\n{title}\n" + bullets(items))
+        return "\n".join(parts)
 
-async def handle_test_commands(message: types.Message):
-    owner_id = message.from_user.id
-    page_idx = 0
-    page = TEST_CMD_PAGES[page_idx]
-    txt = await _render_test_page_text(page)
-    await message.reply(
-        f"📖 <b>Тестовый список команд</b>\n<i>по страницам</i>\n\n{txt}",
-        parse_mode="HTML",
-        reply_markup=_test_cmd_kb(owner_id, page_idx)
-    )
+async def handle_commands_test(message: types.Message):
+    text = await _render_commands_test_page(1)
+    kb = _commands_test_kb(page=1, uid=message.from_user.id)
+    await message.reply(text, parse_mode="HTML", reply_markup=kb, disable_web_page_preview=True)
 
-async def handle_test_commands_callback(call: types.CallbackQuery):
-    data = call.data or ""
-    if data == "tc:nop":
-        await call.answer()
-        return
-    # формат: tc:<owner_id>:<page_idx>
+async def handle_commands_test_callback(cb: CallbackQuery):
     try:
-        _prefix, owner_s, page_s = data.split(":")
-        owner_id = int(owner_s)
-        page_idx = int(page_s)
+        _, uid_s, action = cb.data.split(":", 2)
     except Exception:
-        await call.answer("Некорректные данные.", show_alert=False)
+        await cb.answer()
         return
-
-    # защита — листает только инициатор
-    if call.from_user.id != owner_id:
-        await call.answer("Эта навигация не для вас.", show_alert=True)
-        return
-
-    page = TEST_CMD_PAGES[page_idx % len(TEST_CMD_PAGES)]
-    txt = await _render_test_page_text(page)
     try:
-        await call.message.edit_text(
-            f"📖 <b>Тестовый список команд</b>\n<i>по страницам</i>\n\n{txt}",
-            parse_mode="HTML",
-            reply_markup=_test_cmd_kb(owner_id, page_idx)
-        )
-    except Exception:
-        # если не можем редактировать — просто ответим новым сообщением
-        await call.message.answer(
-            f"📖 <b>Тестовый список команд</b>\n<i>по страницам</i>\n\n{txt}",
-            parse_mode="HTML",
-            reply_markup=_test_cmd_kb(owner_id, page_idx)
-        )
-    await call.answer()
+        owner_uid = int(uid_s)
+    except:
+        await cb.answer()
+        return
+    if cb.from_user.id != owner_uid:
+        await cb.answer("Это меню открыто не вами.", show_alert=False)
+        return
+    if action == "close":
+        await cb.message.edit_reply_markup(reply_markup=None)
+        await cb.answer("Закрыто.")
+        return
+    try:
+        page = int(action)
+    except:
+        await cb.answer()
+        return
+    if page < 1: page = 1
+    if page > 2: page = 2
+    new_text = await _render_commands_test_page(page)
+    new_kb = _commands_test_kb(page=page, uid=owner_uid)
+    await cb.message.edit_text(new_text, parse_mode="HTML", reply_markup=new_kb, disable_web_page_preview=True)
+    await cb.answer()
+
