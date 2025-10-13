@@ -601,14 +601,6 @@ async def handle_message(message: types.Message):
             return
 
 
-        # ТЕСТОВЫЕ КОМАНДЫ ------------------------
-        if text_l == "тестовые команды":
-            await handle_commands_test(message)
-            return
-        # -----------------------------------------
-
-
-
 # ---------- базовые куски (ролы, фото, рейтинги и т.п.) ----------
 # === Кураторские хендлеры ролей и ключа (точно под старую логику) ===
 
@@ -1290,7 +1282,7 @@ async def handle_stipend_claim(message: types.Message):
 
     # кулдаун 24ч на жалование — используем те же функции, но с иным reason
     seconds = await get_seconds_since_last_salary_claim(user_id, "жалование")
-    COOLDOWN = 24 * 60 * 60
+    COOLDOWN = 12 * 60 * 60
     if seconds is not None and seconds < COOLDOWN:
         remain = COOLDOWN - seconds
         hours = remain // 3600
@@ -1338,7 +1330,7 @@ async def handle_theft(message: types.Message):
         await message.reply("Красть у бота бессмысленно.")
         return
     seconds = await get_seconds_since_last_theft(thief_id)
-    COOLDOWN = 24 * 60 * 60
+    COOLDOWN = 12 * 60 * 60
     if seconds is not None and seconds < COOLDOWN:
         remain = COOLDOWN - seconds
         hours = remain // 3600
@@ -1876,7 +1868,7 @@ async def handle_hero_of_day(message: types.Message):
         return
 
     hero_id = random.choice(candidates)
-    await hero_set_for_today(chat_id, hero_id)
+    await hero_set_for_today(chat_id, hero_id, hours=12)
 
     # тексты анонса (без пингов)
     try:
@@ -1906,9 +1898,26 @@ async def handle_hero_concert(message: types.Message):
         await message.reply("Вы не являетесь сегодняшним исполнителем.")
         return
 
-    if await hero_has_claimed_today(chat_id, user_id):
-        await message.reply("Сегодня вы уже выступали. Завтра выступит кто-то другой.")
-        return
+    async def hero_has_claimed_today(chat_id: int, user_id: int) -> bool:
+        """True, если с последнего hero_claim прошло меньше 12 часов в этом чате."""
+        async with aiosqlite.connect(DB_PATH) as db:
+            async with db.execute("""
+                SELECT date FROM history
+                WHERE user_id=? AND action='hero_claim' AND reason LIKE ?
+                ORDER BY id DESC LIMIT 1
+            """, (user_id, f"%chat_id={chat_id}%")) as cur:
+                row = await cur.fetchone()
+        if not row:
+            return False
+        try:
+            last = datetime.fromisoformat(row[0] + ("+00:00" if "Z" not in row[0] and "+" not in row[0] else ""))
+        except Exception:
+            return False
+        # 12 часов
+        from datetime import timedelta, timezone
+        now = datetime.now(timezone.utc)
+        return (now - last) < timedelta(hours=12)
+
 
     reward = random.randint(HERO_CONCERT_MIN, HERO_CONCERT_MAX)
     await hero_record_claim(chat_id, user_id, reward)
@@ -1951,138 +1960,4 @@ async def _generosity_reset_points_for(user_id: int) -> int:
         # спишем очки «в ноль» единым движением
         await insert_history(user_id, "generosity_pay_points", pts, "reset")
     return pts
-
-
-
-
-
-
-
-# ===== ТЕСТОВЫЕ КОМАНДЫ (постраничный список) =====
-# ===== ПАГИНИРУЕМЫЙ СПИСОК КОМАНД (2 страницы) =====
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
-
-def _commands_test_kb(page: int, uid: int) -> InlineKeyboardMarkup:
-    prev_btn = InlineKeyboardButton(text="◀️", callback_data=f"cmdpg:{uid}:{page-1}")
-    next_btn = InlineKeyboardButton(text="▶️", callback_data=f"cmdpg:{uid}:{page+1}")
-    close_btn = InlineKeyboardButton(text="✖️ Закрыть", callback_data=f"cmdpg:{uid}:close")
-    indicator = InlineKeyboardButton(text=f"{page}/2", callback_data="noop")
-    if page == 1:
-        row1 = [indicator, next_btn]
-    else:
-        row1 = [prev_btn, indicator]
-    return InlineKeyboardMarkup(inline_keyboard=[row1, [close_btn]])
-
-async def _render_commands_test_page(page: int) -> str:
-    # берём живые цены на утилиты
-    price_pin = await get_price_pin()
-    price_pin_loud = await get_price_pin_loud()
-
-    if page == 1:
-        # все + владельцы ключа
-        members = [
-            "мой карман — ваш баланс",
-            "моя роль / роль (reply) — роли",
-            "рейтинг клуба / члены клуба / хранители ключа",
-            "передать <N> (reply) — перевод",
-            "дождь <N> — раздать до 5 случайным",
-            "ставлю <N> на 🎲|кубик / 🎯|дартс / 🎳|боулинг / 🎰|автоматы",
-            "рынок — витрина, «купить эмеральд/перк/лот», «выставить/снять лот»",
-            "мои перки / перки (reply)",
-            "получить жалование / украсть|своровать (reply)",
-            "сейф — сводка экономики",
-            "концерт / выступить",
-            f"повесить пост (reply) — {fmt_money(price_pin)}",
-            f"повесить громкий пост (reply) — {fmt_money(price_pin_loud)}",
-        ]
-        keyholders = [
-            "вручить <N> (reply) — выдать из сейфа",
-            "взыскать <N> (reply) — забрать в сейф",
-            "карман (reply) — баланс участника",
-        ]
-        return (
-            "📜 <b>КОМАНДЫ — СТРАНИЦА 1/2</b>\n\n"
-            "🎭 <b>Для всех</b>\n" + bullets(members) + "\n\n"
-            "🗝 <b>Владельцы ключа</b>\n" + bullets(keyholders)
-        )
-    else:
-        # куратор
-        curator_blocks = [
-            ("🏦 Сейф/экономика", [
-                "включить сейф <CAP> / перезапустить сейф <CAP> подтверждаю",
-                "сейф — сводка экономики",
-                "сжигание <bps> — 100 bps = 1%",
-                "кража <N> — сумма удачной кражи",
-            ]),
-            ("🎰 Казино", [
-                "казино открыть|закрыть",
-                "множитель кубик|дартс|боулинг|автоматы <X>",
-                "лимит ставка <N> / лимит дождь <N>",
-            ]),
-            ("💎 Рынок и цены", [
-                "цена эмеральд <N>",
-                "цена перк <код> <N>",
-                "цена пост <N> / цена громкий пост <N>",
-            ]),
-            ("🎖 Перки", [
-                "у кого перк <код> / перки реестр",
-                "даровать <код> (reply) / уничтожить <код> (reply)",
-            ]),
-            ("🎭 Роли и ключи", [
-                "назначить \"Роль\" описание (reply) / снять роль (reply)",
-                "ключ от сейфа (reply) / снять ключ (reply)",
-            ]),
-            ("🧹 Сбросы/служебные", [
-                "обнулить баланс (reply) / обнулить балансы / обнулить клуб",
-            ]),
-            ("🎁 Жалование и щедрость", [
-                "жалование база <N> / жалование надбавка <N>",
-                "щедрость множитель <p>% / щедрость награда <N>",
-                "щедрость статус / щедрость очки / щедрость обнулить (reply)",
-                "щедрость обнулить все подтверждаю",
-            ]),
-            ("🧩 Код-слово", [
-                "установить код <слово> <сумма> <подсказка>",
-                "отменить код",
-            ]),
-        ]
-        parts = [f"📜 <b>КОМАНДЫ — СТРАНИЦА 2/2</b>"]
-        for title, items in curator_blocks:
-            parts.append(f"\n{title}\n" + bullets(items))
-        return "\n".join(parts)
-
-async def handle_commands_test(message: types.Message):
-    text = await _render_commands_test_page(1)
-    kb = _commands_test_kb(page=1, uid=message.from_user.id)
-    await message.reply(text, parse_mode="HTML", reply_markup=kb, disable_web_page_preview=True)
-
-async def handle_commands_test_callback(cb: CallbackQuery):
-    try:
-        _, uid_s, action = cb.data.split(":", 2)
-    except Exception:
-        await cb.answer()
-        return
-    try:
-        owner_uid = int(uid_s)
-    except:
-        await cb.answer()
-        return
-    if cb.from_user.id != owner_uid:
-        await cb.answer("Это меню открыто не вами.", show_alert=False)
-        return
-    if action == "close":
-        await cb.message.edit_reply_markup(reply_markup=None)
-        await cb.answer("Закрыто.")
-        return
-    try:
-        page = int(action)
-    except:
-        await cb.answer()
-        return
-    if page < 1: page = 1
-    if page > 2: page = 2
-    new_text = await _render_commands_test_page(page)
-    new_kb = _commands_test_kb(page=page, uid=owner_uid)
-    await cb.message.edit_text(new_text, parse_mode="HTML", reply_markup=new_kb, disable_web_page_preview=True)
-    await cb.answer()
 
