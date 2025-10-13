@@ -43,12 +43,12 @@ if AIOMAJOR >= 3:
 
     ### ТЕСТОВЫЕ КОМАНДЫ 1/2 ----------------------------
     from aiogram import F
-    from commands import handle_test_commands_callback
+    from commands import handle_commands_test_callback
     from aiogram.types import CallbackQuery
 
     @router.callback_query(F.data.startswith("tc:"))
     async def on_test_commands_cb(call: CallbackQuery):
-        await handle_test_commands_callback(call)
+        await handle_commands_test_callback(call)
     ### -------------------------------------------------
 
     async def main():
