@@ -998,10 +998,6 @@ async def handle_dozhd(message: types.Message):
     for (uid, _name), amt in zip(recipients, per_user):
         if amt > 0:
             await change_balance(uid, amt, "дождь", giver_id)
-    await change_balance(giver_id, -total, "дождь", giver_id)
-    for (uid, _name), amt in zip(recipients, per_user):
-        if amt > 0:
-            await change_balance(uid, amt, "дождь", giver_id)
 
     # NEW: «Филантроп» — 15% шанс добавить шестого получателя с такой же долей (из сейфа)
     giver_perks = await get_perks(giver_id)
@@ -1568,7 +1564,8 @@ async def handle_market_show(message: types.Message):
             f"{emoji} <b>{title_base}</b>\n"
             f"Цена: {price_str}\n"
             f"Команда использования: {usage}\n"
-            f"Команда покупки: купить перк {code}"
+            f"Команда покупки: купить перк {code}\n"
+            f"{dyn}"
         )
 
 
