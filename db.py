@@ -240,6 +240,17 @@ async def get_known_users() -> list[int]:
 
 # ------- перки через history -------
 
+# ==== LEGACY ALIASES FOR PERK CODES ====
+PERK_ALIASES = {
+    "вор": "кража",
+    # сюда можно добавлять и другие переименования в будущем
+}
+
+def _normalize_perk_code(code: str) -> str:
+    c = (code or "").strip().lower()
+    return PERK_ALIASES.get(c, c)
+
+
 async def grant_perk(user_id: int, perk_code: str):
     return await insert_history(user_id, "perk_grant", None, perk_code)
 
@@ -258,43 +269,58 @@ async def get_perks(user_id: int) -> set[str]:
     for action, code in rows:
         if not code:
             continue
-        code = code.strip().lower()
+        code = _normalize_perk_code(code)
         if action == "perk_grant":
             perks.add(code)
         else:
             perks.discard(code)
-    return perks
 
 async def get_perk_holders(perk_code: str) -> List[int]:
-    # восстановим по истории актуальный набор
+    target = _normalize_perk_code(perk_code)
     state = {}
     async with aiosqlite.connect(DB_PATH) as db:
         async with db.execute("""
-            SELECT user_id, action FROM history
-            WHERE action IN ('perk_grant','perk_revoke') AND reason = ?
+            SELECT user_id, action, reason FROM history
+            WHERE action IN ('perk_grant','perk_revoke')
             ORDER BY id ASC
-        """, (perk_code,)) as cur:
+        """) as cur:
             rows = await cur.fetchall()
-    for uid, action in rows:
+    for uid, action, reason in rows:
         if uid is None:
+            continue
+        code = _normalize_perk_code(reason)
+        if code != target:
             continue
         state[uid] = (action == "perk_grant")
     return [uid for uid, has in state.items() if has]
 
+
 async def get_perks_summary() -> List[Tuple[str, int]]:
     async with aiosqlite.connect(DB_PATH) as db:
         async with db.execute("""
-            SELECT DISTINCT reason FROM history
+            SELECT user_id, action, reason FROM history
             WHERE action IN ('perk_grant','perk_revoke') AND reason IS NOT NULL
+            ORDER BY id ASC
         """) as cur:
-            codes = [r[0] for r in await cur.fetchall()]
+            rows = await cur.fetchall()
+
+    state: dict[tuple[str,int], bool] = {}
+    for uid, action, reason in rows:
+        code = _normalize_perk_code(reason)
+        if not code:
+            continue
+        state[(code, uid)] = (action == "perk_grant")
+
+    counts: dict[str, int] = {}
+    for (code, uid), has in state.items():
+        if has:
+            counts[code] = counts.get(code, 0) + 1
+
     out = []
-    for code in sorted(set([c.strip().lower() for c in codes if c])):
-        holders = await get_perk_holders(code)
-        cnt = len(holders)
-        if cnt > 0:              # <-- скрываем пустые
-            out.append((code, cnt))
+    for code in sorted(counts.keys()):
+        out.append((code, counts[code]))
     return out
+
 # ------- ЗП/кража кулдауны -------
 
 async def get_seconds_since_last_salary_claim(user_id: int, perk_code: str = "зп") -> int | None:
@@ -436,9 +462,19 @@ async def set_price_emerald(v: int):
     await set_config_int(CFG_PRICE_EMERALD, max(1, v))
 
 async def get_price_perk(code: str) -> Optional[int]:
+    code = _normalize_perk_code(code)
     key = f"price_perk:{code}"
     val = await get_config_int(key, -1)
-    return None if val < 0 else val
+    if val >= 0:
+        return val
+    # если цены для нового кода нет — попробуем «устаревшие» ключи, которые ведут к этому коду
+    for legacy, new in PERK_ALIASES.items():
+        if new == code:
+            legacy_val = await get_config_int(f"price_perk:{legacy}", -1)
+            if legacy_val >= 0:
+                return legacy_val
+    return None
+
 
 async def set_price_perk(code: str, v: int):
     key = f"price_perk:{code}"
