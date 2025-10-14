@@ -1542,7 +1542,7 @@ async def handle_market_show(message: types.Message):
         name = perk_display_name(code, mode="caps")  # "CAPS" или "cap"
 
         # для витрины убираем приписки в скобках только визуально
-        title_base = title.split(" (", 1)[0]
+        # title_base = title.split(" (", 1)[0]
 
         if code == "надбавка":
             usage = f"автоматический бонус при использовании «получить жалование». текущая надбавка: +{fmt_money(bonus)}"
@@ -1607,7 +1607,7 @@ async def handle_market_show(message: types.Message):
     parts.append("\n\n📦 <b>ЛОТЫ УЧАСТНИКОВ</b>\n")
     parts.append("\n\n".join(offer_blocks) if offer_blocks else "Пока нет активных лотов.")
     parts.append("\n\n" + turnover_line + "\n" + burn_line)
-    
+
     txt = "".join(parts)
 
     try:
