@@ -1431,7 +1431,7 @@ async def handle_theft(message: types.Message):
         return
 
     seconds = await get_seconds_since_last_theft(thief_id)
-    COOLDOWN = 24 * 60 * 60
+    COOLDOWN = 12 * 60 * 60
     if seconds is not None and seconds < COOLDOWN:
         remain = COOLDOWN - seconds
         hours = remain // 3600
