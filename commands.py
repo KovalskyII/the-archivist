@@ -358,7 +358,7 @@ async def handle_message(message: types.Message):
             return
 
         # щедрость множитель <p>
-        m = re.match(r"^щедрость\s+множитель\s+(\д+)\s*$", text_l)
+        m = re.match(r"^щедрость\s+множитель\s+(\d+)\s*$", text_l)
         if m:
             v = int(m.group(1))
             await set_generosity_mult_pct(v)
@@ -367,7 +367,7 @@ async def handle_message(message: types.Message):
             return
 
         # щедрость награда <N>
-        m = re.match(r"^щедрость\s+награда\s+(\д+)\s*$", text_l)
+        m = re.match(r"^щедрость\s+награда\s+(\d+)\s*$", text_l)
         if m:
             v = int(m.group(1))
             await set_generosity_threshold(v)
@@ -1001,11 +1001,12 @@ async def handle_dozhd(message: types.Message):
 
     # NEW: «Филантроп» — 15% шанс добавить шестого получателя с такой же долей (из сейфа)
     giver_perks = await get_perks(giver_id)
+    p = await get_perk_philanthrope_chance()
     base_share = per_user[0] if per_user else 0
     added_sixth = False
     extra_lines = []
 
-    if "филантроп" in giver_perks and base_share > 0 and chance(15):
+    if "филантроп" in giver_perks and base_share > 0 and chance(p):
         # найдём кандидата, не из текущих 5
         taken_ids = {uid for uid, _ in recipients}
         extra_pool = [(uid, name) for uid, name in eligible if uid not in taken_ids]
@@ -1024,7 +1025,8 @@ async def handle_dozhd(message: types.Message):
             if uid in taken_ids:
                 continue
             user_perks = await get_perks(uid)
-            if "везунчик" in user_perks and chance(33):
+            p = await get_perk_lucky_chance()
+            if "везунчик" in user_perks and chance(p):
                 lucky_pool.append((uid, name))
         if lucky_pool and base_share > 0:
             lucky_uid, lucky_name = random.choice(lucky_pool)
@@ -1037,11 +1039,7 @@ async def handle_dozhd(message: types.Message):
     ]
     if extra_lines:
         breakdown.extend(extra_lines)
-
-    breakdown = [
-        f"{mention_html(uid, name)} — намок на {fmt_money(amt)}"
-        for (uid, name), amt in zip(recipients, per_user) if amt > 0
-    ]
+    
     pct = await get_generosity_mult_pct()
     pts = (total * pct) // 100
     await add_generosity_points(giver_id, pts, "rain")
@@ -1140,7 +1138,8 @@ async def handle_kubik(message: types.Message):
             )
             # NEW: «Крупье» — 15% шанс вернуть 50% ставки при проигрыше
             user_perks = await get_perks(user_id)
-            if "крупье" in user_perks and chance(15):
+            p = await get_perk_croupier_chance()
+            if "крупье" in user_perks and chance(p):
                 refund = amount // 2
                 if refund > 0:
                     await change_balance(user_id, refund, "крупье_рефанд(кубик)", user_id)
@@ -1404,7 +1403,7 @@ async def handle_perk_registry(message: types.Message):
 async def handle_stipend_claim(message: types.Message):
     user_id = message.from_user.id
 
-    # кулдаун 24ч на жалование — используем те же функции, но с иным reason
+    # кулдаун на жалование — используем те же функции, но с иным reason
     seconds = await get_seconds_since_last_salary_claim(user_id, "жалование")
     COOLDOWN = 12 * 60 * 60
     if seconds is not None and seconds < COOLDOWN:
@@ -1467,6 +1466,7 @@ async def handle_stipend_claim(message: types.Message):
 async def handle_theft(message: types.Message):
     thief_id = message.from_user.id
     perks = await get_perks(thief_id)
+    p = await get_perk_shield_chance()
     if "кража" not in perks:
         await message.reply("У Вас нет такой привилегии.")
         return
@@ -1480,7 +1480,7 @@ async def handle_theft(message: types.Message):
 
     # NEW: «Щит» у жертвы — 50% срыв кражи
     victim_perks = await get_perks(victim.id)
-    if "щит" in victim_perks and chance(50):
+    if "щит" in victim_perks and chance(p):
         await record_theft(thief_id, 0, victim.id, success=False)
         await message.reply("🛡️ Щит жертвы вспыхнул — пришлось ретироваться. Ждите 12 часов.")
         return
@@ -1497,7 +1497,7 @@ async def handle_theft(message: types.Message):
     victim_balance = await get_balance(victim.id)
     if victim_balance < income or income <= 0:
         await record_theft(thief_id, 0, victim.id, success=False)
-        await message.reply("🐕 Сторожевые собаки подняли лай — пришлось бежать. Придется снова ждать 24 часа.")
+        await message.reply("🐕 Сторожевые собаки подняли лай — пришлось бежать. Придется снова ждать 12 часов.")
         return
 
     await change_balance(victim.id, -income, "кража", thief_id)
@@ -1981,10 +1981,10 @@ async def handle_commands_curator(message: types.Message):
         ("🎖 Перки", [
             "у кого перк <код>|держатели перка / перки реестр",
             "даровать <код> (reply) / уничтожить <код> (reply)",
-            "щит шанс <P> — установить шанс увернуться от кражи"
-            "крупье шанс <P> — шанс частичного возврата ставки при проигрыше»"
-            "филантроп шанс <P> — шанс подарка шестому при дожде"
-            "везунчик шанс <P> — шанс автопопадания в дождь"
+            "щит шанс <P> — установить шанс увернуться от кражи",
+            "крупье шанс <P> — шанс частичного возврата ставки при проигрыше»",
+            "филантроп шанс <P> — шанс подарка шестому при дожде",
+            "везунчик шанс <P> — шанс автопопадания в дождь",
         ]),
         ("🎭 Роли и ключи", [
             "назначить \"Роль\" описание (reply) / снять роль (reply)",
