@@ -1596,10 +1596,10 @@ async def handle_market_show(message: types.Message):
         f"💎 Эмеральд: {fmt_money(price_emerald)}\n"
         f"Команда покупки: купить эмеральд\n\n"
         "🎖 <b>ПЕРКИ</b>\n" +
+        perks_header +
         ("\n\n".join(perk_blocks) if perk_blocks else "Пока ничего нет.") +
         "\n\n"
         "📦 <b>ЛОТЫ УЧАСТНИКОВ</b>\n" +
-        perks_header +
         ("\n\n".join(offer_blocks) if offer_blocks else "Пока нет активных лотов.") +
         "\n\n" +
         turnover_line + "\n" +
