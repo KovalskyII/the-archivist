@@ -76,7 +76,7 @@ PERK_REGISTRY = {
     "крупье": ("🎩", "Крупье"),                 # 15% рефанд 50% ставки при проигрыше
     "филантроп": ("🎁", "Филантроп"),           # 15% шестой получатель дождя за счёт сейфа
     "везунчик": ("🍀", "Везунчик"),             # 33% стать шестым в чужом дожде
-    "премия": ("💼", "Премия"),                  # вместо «надбавки»: 0×/1×/2×
+    "премия": ("🏅", "Премия"),
 }
 
 def mention_html(user_id: int, fallback: str = "Участник") -> str:
@@ -1382,15 +1382,34 @@ async def handle_stipend_claim(message: types.Message):
         await message.reply(f"Жалование уже получено. Повторно — через {hours}ч {minutes}м.")
         return
 
-    # считаем размер: база + (если есть перк «надбавка», добавляем бонус)
-    base = await get_stipend_base()
-    bonus = 0
     perks = await get_perks(user_id)
-    if "надбавка" in perks:
-        bonus = await get_stipend_bonus()
 
-    total = base + bonus
-    # проверка сейфа
+    # база и надбавка (как было)
+    base = await get_stipend_base()
+    bonus = await get_stipend_bonus() if "надбавка" in perks else 0
+
+    # ПРЕМИЯ: 20% ×2; 50% ×1; 10% ×0.5; 20% ×0 — всегда от ТЕКУЩЕЙ «надбавки»
+    premium_bonus = 0
+    premium_note = None
+    if "премия" in perks:
+        roll = random.randint(1, 100)  # 1..100
+        sb = await get_stipend_bonus()  # именно от надбавки
+        if roll <= 20:
+            premium_bonus = int(sb * 2.0)
+            premium_note = "🏅 Премия ×2"
+        elif roll <= 70:
+            premium_bonus = int(sb * 1.0)
+            premium_note = "🏅 Премия ×1"
+        elif roll <= 80:
+            premium_bonus = int(sb * 0.5)
+            premium_note = "🏅 Премия ×0.5"
+        else:
+            premium_bonus = 0
+            premium_note = "🏅 Премия ×0"
+
+    total = base + bonus + premium_bonus
+
+    # проверка сейфа до начисления
     room = await _get_vault_room()
     if room == -1:
         await message.reply("Сейф ещё не включён.")
@@ -1399,14 +1418,19 @@ async def handle_stipend_claim(message: types.Message):
         await message.reply("В сейфе недостаточно нуаров для жалования.")
         return
 
-    # запись КД (используем reason='жалование'), начисление
+    # запись КД (reason='жалование') и начисления
     await record_salary_claim(user_id, total, "жалование")
     await change_balance(user_id, total, "жалование", user_id)
 
+    # ответ
+    lines = [f"💼 Выплачено жалование: {fmt_money(total)}."]
+    lines.append(f"— база: {fmt_money(base)}")
     if bonus > 0:
-        await message.reply(f"💼 Выплачено жалование: {fmt_money(total)} (включая надбавку {fmt_money(bonus)}).")
-    else:
-        await message.reply(f"💼 Выплачено жалование: {fmt_money(total)}.")
+        lines.append(f"— надбавка: {fmt_money(bonus)}")
+    if "премия" in perks:
+        lines.append(f"— {premium_note}: {fmt_money(premium_bonus)}")
+    await message.reply("\n".join(lines))
+
 
 async def handle_theft(message: types.Message):
     thief_id = message.from_user.id
