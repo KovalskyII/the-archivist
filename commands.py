@@ -1537,7 +1537,7 @@ async def handle_market_show(message: types.Message):
         title_base = title.split(" (", 1)[0]
 
         if code == "надбавка":
-            usage = "автоматическая прибавка при использовании «получить жалование»"
+            usage = "автоматический бонус при использовании «получить жалование»"
         elif code == "кража":
             usage = "«украсть» / «своровать» (reply)"
         else:
@@ -1546,25 +1546,25 @@ async def handle_market_show(message: types.Message):
         # Динамическое дополнение (живые параметры)
         dyn = ""
         if code == "надбавка":
-            dyn = f"\nТекущая надбавка: +{fmt_money(bonus)}"
+            dyn = f"\n<b>Текущая надбавка:</b> +{fmt_money(bonus)}"
         elif code == "кража":
-            dyn = f"\nСумма удачной кражи: {fmt_money(theft)}"
+            dyn = f"\n<b>Сумма удачной кражи:</b> {fmt_money(theft)}"
         elif code == "щит":
-            dyn = f"\nШанс уклониться от кражи: {shield}%"
+            dyn = f"\n<b>Шанс уклониться от кражи:</b> {shield}%"
         elif code == "крупье":
-            dyn = f"\nШанс рефанда при проигрыше: {croup}%"
+            dyn = f"\n<b>Шанс рефанда при проигрыше в играх:</b> {croup}%"
         elif code == "филантроп":
-            dyn = f"\nШанс доп. дождя из сейфа: {phil}%"
+            dyn = f"\n<b>Шанс что ваш дождь окатит еще одного:</b> {phil}%"
         elif code == "везунчик":
-            dyn = f"\nШанс попадать в дождь: {lucky}%"
+            dyn = f"\n<b>Шанс попасть под чужой дождь:</b> {lucky}%"
         elif code == "премия":
-            dyn = "\nМодель премии: 20%×2 | 50%×1 | 10%×0.5 | 20%×0"
+            dyn = "\n<b>Модель премии:</b> 20%×2 | 50%×1 | 10%×0.5 | 20%×0"
 
         perk_blocks.append(
             f"{emoji} <b>{title_base}</b>\n"
-            f"Цена: {price_str}\n"
-            f"Команда использования: {usage}\n"
-            f"Команда покупки: купить перк {code}"
+            f"<b>Цена:</b> {price_str}\n"
+            f"<b>Команда использования:</b> {usage}\n"
+            f"<b>Команда покупки: купить перк</b> {code}"
             f"{dyn}"
         )
 
