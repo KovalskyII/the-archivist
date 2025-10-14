@@ -1522,6 +1522,13 @@ async def handle_market_show(message: types.Message):
     t24  = await get_market_turnover_days(1)
     t7   = await get_market_turnover_days(7)
     t30  = await get_market_turnover_days(30)
+    # Индексы/шансы перков и связанные величины
+    shield = await get_perk_shield_chance()
+    croup  = await get_perk_croupier_chance()
+    phil   = await get_perk_philanthrope_chance()
+    lucky  = await get_perk_lucky_chance()
+    bonus  = await get_stipend_bonus()   # надбавка к жалованию (сумма)
+    theft  = await get_income()          # размер удачной кражи (сумма)
 
     # ===== Перки =====
     # Перки
@@ -1572,6 +1579,18 @@ async def handle_market_show(message: types.Message):
             f"Команда покупки: купить лот {offer_id}"
         )
 
+    indices_block = (
+        "⚙️ <b>ИНДЕКСЫ И ШАНСЫ</b>\n"
+        f"🛡️ Щит — {shield}%\n"
+        f"🎲 Крупье — {croup}%\n"
+        f"🎁 Филантроп — {phil}%\n"
+        f"🍀 Везунчик — {lucky}%\n"
+        f"🏅 Премия — 20%×2 | 50%×1 | 10%×0.5 | 20%×0\n"
+        f"💼 Надбавка — +{fmt_money(bonus)} к жалованию\n"
+        f"🗡️ Кража — {fmt_money(theft)}"
+    )
+
+
     turnover_line = (
         f"📈 <b>Оборот</b>: 24ч — {fmt_money(t24)} • 7д — {fmt_money(t7)} • 30д — {fmt_money(t30)}"
     )
@@ -1587,6 +1606,7 @@ async def handle_market_show(message: types.Message):
         "📦 <b>ЛОТЫ УЧАСТНИКОВ</b>\n" +
         ("\n\n".join(offer_blocks) if offer_blocks else "Пока нет активных лотов.") +
         "\n\n" +
+        indices_block + "\n\n" + 
         turnover_line + "\n" +
         burn_line
     )
@@ -1826,8 +1846,8 @@ async def handle_vault_stats(message: types.Message):
         f"· · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · ·\n"
         f"<b>ИНДЕКСЫ и КОЭФФИЦИЕНТЫ</b>\n\n"
         f"🧯 <b>Сжигание (налоги):</b> {bps_pct}\n"
-        f"💼 <b>Жалование:</b>\n· База: {fmt_money(base)}\n· Надбавка: {fmt_money(bonus)}\n"
-        f"🗡️ <b>Кража:</b> {fmt_money(theft)}"
+        f"💼 <b>Жалование:</b> {fmt_money(base)}\n"
+
     )
     await message.reply(txt, parse_mode="HTML")
 
