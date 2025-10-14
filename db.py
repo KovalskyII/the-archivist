@@ -699,6 +699,36 @@ async def set_stipend_bonus(v: int):
 # ==== NEW: щедрость ====
 CFG_GEN_MULT_PCT = "generosity_mult_pct"   # проценты, 5 = 5%
 CFG_GEN_THRESHOLD = "generosity_threshold" # порог очков для выплаты
+# ==== NEW: шансы перков (0..100 %) ====
+CFG_PERK_SHIELD_CHANCE      = "perk_shield_chance"       # "Щит": шанс увернуться от кражи
+CFG_PERK_CROUPIER_CHANCE    = "perk_croupier_chance"     # "Крупье": шанс частичного рефанда в играх
+CFG_PERK_PHILANTHROPE_CHANCE= "perk_philanthrope_chance" # "Филантроп": шанс подарка шестому в дожде
+CFG_PERK_LUCKY_CHANCE       = "perk_lucky_chance"        # "Везунчик": шанс автопопадания в дождь
+
+async def get_perk_shield_chance() -> int:
+    return max(0, min(100, await get_config_int(CFG_PERK_SHIELD_CHANCE, 50)))  # дефолт 50%
+
+async def set_perk_shield_chance(p: int):
+    await set_config_int(CFG_PERK_SHIELD_CHANCE, max(0, min(100, p)))
+
+async def get_perk_croupier_chance() -> int:
+    return max(0, min(100, await get_config_int(CFG_PERK_CROUPIER_CHANCE, 15)))  # дефолт 15%
+
+async def set_perk_croupier_chance(p: int):
+    await set_config_int(CFG_PERK_CROUPIER_CHANCE, max(0, min(100, p)))
+
+async def get_perk_philanthrope_chance() -> int:
+    return max(0, min(100, await get_config_int(CFG_PERK_PHILANTHROPE_CHANCE, 15)))  # дефолт 15%
+
+async def set_perk_philanthrope_chance(p: int):
+    await set_config_int(CFG_PERK_PHILANTHROPE_CHANCE, max(0, min(100, p)))
+
+async def get_perk_lucky_chance() -> int:
+    return max(0, min(100, await get_config_int(CFG_PERK_LUCKY_CHANCE, 33)))  # дефолт 33%
+
+async def set_perk_lucky_chance(p: int):
+    await set_config_int(CFG_PERK_LUCKY_CHANCE, max(0, min(100, p)))
+
 
 async def get_generosity_mult_pct() -> int:
     return await get_config_int(CFG_GEN_MULT_PCT, 5)

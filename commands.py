@@ -25,6 +25,10 @@ from db import (
     set_generosity_threshold, set_price_pin, set_price_pin_loud,
     insert_history, get_circulating, get_price_pin, get_price_pin_loud,
     get_generosity_points, get_generosity_threshold, hero_get_current_with_until,
+    get_perk_shield_chance, set_perk_shield_chance,
+    get_perk_croupier_chance, set_perk_croupier_chance,
+    get_perk_philanthrope_chance, set_perk_philanthrope_chance,
+    get_perk_lucky_chance, set_perk_lucky_chance,
 
     # анти-дубль
     is_msg_processed, mark_msg_processed,
@@ -614,6 +618,38 @@ async def handle_message(message: types.Message):
 
         if t in ("команды куратора", "мои команды", "/команды_куратора"):
             await handle_commands_curator(message)
+            return
+
+        m = re.match(r"^щит\s+шанс\s+(\d+)\s*$", text_l)
+        if m:
+            p = int(m.group(1))
+            await set_perk_shield_chance(p)
+            cur = await get_perk_shield_chance()
+            await message.reply(f"🛡️ Шанс перка «Щит» обновлён: {cur}%")
+            return
+
+        m = re.match(r"^крупье\s+шанс\s+(\d+)\s*$", text_l)
+        if m:
+            p = int(m.group(1))
+            await set_perk_croupier_chance(p)
+            cur = await get_perk_croupier_chance()
+            await message.reply(f"🎲 Шанс перка «Крупье» обновлён: {cur}%")
+            return
+
+        m = re.match(r"^филантроп\s+шанс\s+(\d+)\s*$", text_l)
+        if m:
+            p = int(m.group(1))
+            await set_perk_philanthrope_chance(p)
+            cur = await get_perk_philanthrope_chance()
+            await message.reply(f"🎁 Шанс перка «Филантроп» обновлён: {cur}%")
+            return
+
+        m = re.match(r"^везунчик\s+шанс\s+(\d+)\s*$", text_l)
+        if m:
+            p = int(m.group(1))
+            await set_perk_lucky_chance(p)
+            cur = await get_perk_lucky_chance()
+            await message.reply(f"🍀 Шанс перка «Везунчик» обновлён: {cur}%")
             return
 
 
@@ -1450,7 +1486,7 @@ async def handle_theft(message: types.Message):
     victim_perks = await get_perks(victim.id)
     if "щит" in victim_perks and chance(50):
         await record_theft(thief_id, 0, victim.id, success=False)
-        await message.reply("🛡️ Щит жертвы вспыхнул — пришлось ретироваться. Ждите 24 часа.")
+        await message.reply("🛡️ Щит жертвы вспыхнул — пришлось ретироваться. Ждите 12 часов.")
         return
 
     seconds = await get_seconds_since_last_theft(thief_id)
@@ -1931,6 +1967,10 @@ async def handle_commands_curator(message: types.Message):
         ("🎖 Перки", [
             "у кого перк <код>|держатели перка / перки реестр",
             "даровать <код> (reply) / уничтожить <код> (reply)",
+            "щит шанс <P> — установить шанс увернуться от кражи"
+            "крупье шанс <P> — шанс частичного возврата ставки при проигрыше»"
+            "филантроп шанс <P> — шанс подарка шестому при дожде"
+            "везунчик шанс <P> — шанс автопопадания в дождь"
         ]),
         ("🎭 Роли и ключи", [
             "назначить \"Роль\" описание (reply) / снять роль (reply)",
