@@ -1518,7 +1518,7 @@ async def handle_market_show(message: types.Message):
     t24  = await get_market_turnover_days(1)
     t7   = await get_market_turnover_days(7)
     t30  = await get_market_turnover_days(30)
-    
+
     # Индексы/шансы перков и связанные величины
     shield = await get_perk_shield_chance()
     croup  = await get_perk_croupier_chance()
@@ -1598,19 +1598,16 @@ async def handle_market_show(message: types.Message):
     )
     burn_line = f"🔥 <b>Сжигание на рынке</b>: {fmt_percent_bps(burn_bps)}"
 
-    parts = [
-        "🛒 <b>РЫНОК</b>\n\n",
-        f"💎 Эмеральд: {fmt_money(price_emerald)}\n",
-        "Команда покупки: купить эмеральд\n\n",
-        "🎖 <b>ПЕРКИ</b>\n",
-        perks_header + "\n",
-        ("\n\n".join(perk_blocks) if perk_blocks else "Пока ничего нет."),
-        "\n\n",
-        "📦 <b>ЛОТЫ УЧАСТНИКОВ</b>\n",
-        ("\n\n".join(offer_blocks) if offer_blocks else "Пока нет активных лотов."),
-        "\n\n",
-        turnover_line, "\n", burn_line
-    ]
+    parts = []
+    parts.append("🛒 <b>РЫНОК</b>\n\n")
+    parts.append(f"💎 Эмеральд: {fmt_money(price_emerald)}\nКоманда покупки: купить эмеральд\n\n")
+    parts.append("🎖 <b>ПЕРКИ</b>\n")
+    parts.append(perks_header)
+    parts.append("\n\n".join(perk_blocks) if perk_blocks else "Пока ничего нет.")
+    parts.append("\n\n📦 <b>ЛОТЫ УЧАСТНИКОВ</b>\n")
+    parts.append("\n\n".join(offer_blocks) if offer_blocks else "Пока нет активных лотов.")
+    parts.append("\n\n" + turnover_line + "\n" + burn_line)
+    
     txt = "".join(parts)
 
     try:
