@@ -1540,6 +1540,17 @@ async def handle_market_show(message: types.Message):
             usage = "автоматический бонус при использовании «получить жалование»"
         elif code == "кража":
             usage = "«украсть» / «своровать» (reply)"
+        elif code == "щит":
+            dyn = f"\n<b>Шанс уклониться от кражи:</b> {shield}%"
+        elif code == "крупье":
+            dyn = f"\n<b>Шанс рефанда при проигрыше в играх:</b> {croup}%"
+        elif code == "филантроп":
+            dyn = f"\n<b>Шанс что ваш дождь окатит еще одного:</b> {phil}%"
+        elif code == "везунчик":
+            dyn = f"\n<b>Шанс попасть под чужой дождь:</b> {lucky}%"
+        elif code == "премия":
+            dyn = "\n<b>Модель премии:</b> 20%×2 | 50%×1 | 10%×0.5 | 20%×0"
+
         else:
             usage = "—"
 
@@ -1561,10 +1572,10 @@ async def handle_market_show(message: types.Message):
             dyn = "\n<b>Модель премии:</b> 20%×2 | 50%×1 | 10%×0.5 | 20%×0"
 
         perk_blocks.append(
-            f"{emoji} <b>{title_base}</b>\n"
+            f"{emoji} <b>{code}</b>\n"
             f"<b>Цена:</b> {price_str}\n"
-            f"<b>Команда использования:</b> {usage}\n"
-            f"<b>Команда покупки: купить перк</b> {code}"
+            f"<b>Описание:</b> {usage}\n"
+            f"<b>Команда покупки:</b> купить перк {code}"
             f"{dyn}"
         )
 
