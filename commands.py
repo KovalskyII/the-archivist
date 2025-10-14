@@ -1528,7 +1528,7 @@ async def handle_market_show(message: types.Message):
 
     # ===== Перки =====
     # Перки
-    perk_blocks = [f"Команда покупки перков: купить перк <название>"]
+    perk_blocks = []
     for code, (emoji, title) in PERK_REGISTRY.items():
         price = await get_price_perk(code)
         price_str = f"{fmt_int(price)} 🪙" if price is not None else "не продаётся"
@@ -1553,8 +1553,6 @@ async def handle_market_show(message: types.Message):
 
         else:
             usage = "—"
-
-
 
         perk_blocks.append(
             f"{emoji} <b>{code}</b>\n"
