@@ -1518,6 +1518,7 @@ async def handle_market_show(message: types.Message):
     t24  = await get_market_turnover_days(1)
     t7   = await get_market_turnover_days(7)
     t30  = await get_market_turnover_days(30)
+    
     # Индексы/шансы перков и связанные величины
     shield = await get_perk_shield_chance()
     croup  = await get_perk_croupier_chance()
@@ -1531,10 +1532,9 @@ async def handle_market_show(message: types.Message):
             return code.upper()
         return code.capitalize()
 
-
     perks_header = "Команда покупки: купить перк <имя перка>"
+
     # ===== Перки =====
-    # Перки
     perk_blocks = []
     for code, (emoji, title) in PERK_REGISTRY.items():
         price = await get_price_perk(code)
@@ -1598,20 +1598,20 @@ async def handle_market_show(message: types.Message):
     )
     burn_line = f"🔥 <b>Сжигание на рынке</b>: {fmt_percent_bps(burn_bps)}"
 
-    txt = (
-        "🛒 <b>РЫНОК</b>\n\n"
-        f"💎 Эмеральд: {fmt_money(price_emerald)}\n"
-        f"Команда покупки: купить эмеральд\n\n"
-        "🎖 <b>ПЕРКИ</b>\n" +
-        perks_header +
-        ("\n\n".join(perk_blocks) if perk_blocks else "Пока ничего нет.") +
-        "\n\n" +
-        "📦 <b>ЛОТЫ УЧАСТНИКОВ</b>\n" +
-        ("\n\n".join(offer_blocks) if offer_blocks else "Пока нет активных лотов.") +
-        "\n\n" +
-        turnover_line + "\n" +
-        burn_line
-    )
+    parts = [
+        "🛒 <b>РЫНОК</b>\n\n",
+        f"💎 Эмеральд: {fmt_money(price_emerald)}\n",
+        "Команда покупки: купить эмеральд\n\n",
+        "🎖 <b>ПЕРКИ</b>\n",
+        perks_header + "\n",
+        ("\n\n".join(perk_blocks) if perk_blocks else "Пока ничего нет."),
+        "\n\n",
+        "📦 <b>ЛОТЫ УЧАСТНИКОВ</b>\n",
+        ("\n\n".join(offer_blocks) if offer_blocks else "Пока нет активных лотов."),
+        "\n\n",
+        turnover_line, "\n", burn_line
+    ]
+    txt = "".join(parts)
 
     try:
         # aiogram v3
