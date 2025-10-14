@@ -1564,7 +1564,7 @@ async def handle_market_show(message: types.Message):
             f"{emoji} <b>{title_base}</b>\n"
             f"Цена: {price_str}\n"
             f"Команда использования: {usage}\n"
-            f"Команда покупки: купить перк {code}\n"
+            f"Команда покупки: купить перк {code}"
             f"{dyn}"
         )
 
