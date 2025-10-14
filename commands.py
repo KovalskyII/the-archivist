@@ -1512,118 +1512,118 @@ async def handle_theft(message: types.Message):
 # ------------- рынок -------------
 
 async def handle_market_show(message: types.Message):
-    price_emerald = await get_price_emerald()
-    burn_bps = await get_burn_bps()
-
-    t24  = await get_market_turnover_days(1)
-    t7   = await get_market_turnover_days(7)
-    t30  = await get_market_turnover_days(30)
-
-    # Индексы/шансы перков и связанные величины
-    shield = await get_perk_shield_chance()
-    croup  = await get_perk_croupier_chance()
-    phil   = await get_perk_philanthrope_chance()
-    lucky  = await get_perk_lucky_chance()
-    bonus  = await get_stipend_bonus()   # надбавка к жалованию (сумма)
-    theft  = await get_income()          # размер удачной кражи (сумма)
-
-    def perk_display_name(code: str, mode: str = "cap") -> str:
-        if mode == "caps":
-            return code.upper()
-        return code.capitalize()
-
-    perks_header = "Команда покупки: купить перк <имя перка>"
-
-    # ===== Перки =====
-    perk_blocks = []
-    for code, (emoji, title) in PERK_REGISTRY.items():
-        price = await get_price_perk(code)
-        price_str = f"{fmt_int(price)} 🪙" if price is not None else "не продаётся"
-        name = perk_display_name(code, mode="caps")  # "CAPS" или "cap"
-
-        # для витрины убираем приписки в скобках только визуально
-        # title_base = title.split(" (", 1)[0]
-
-        if code == "надбавка":
-            usage = f"автоматический бонус при использовании «получить жалование». текущая надбавка: +{fmt_money(bonus)}"
-        elif code == "кража":
-            usage = f"возможность украсть по команде «украсть» / «своровать» (reply). сумма удачной кражи: {fmt_money(theft)}"
-        elif code == "щит":
-            usage = f"шанс уклониться от кражи: {shield}%"
-        elif code == "крупье":
-            usage = f"шанс рефанда при проигрыше в играх: {croup}%"
-        elif code == "филантроп":
-            usage = f"шанс что ваш дождь окатит еще одного: {phil}%"
-        elif code == "везунчик":
-            usage = f"шанс попасть под чужой дождь: {lucky}%"
-        elif code == "премия":
-            usage = "модель премии: 20%×2 | 50%×1 | 10%×0.5 | 20%×0"
-        else:
-            usage = "—"
-
-        perk_blocks.append(
-            f"{emoji} <b>{name}</b>\n"
-            f"<b>Цена:</b> {price_str}\n"
-            f"<b>Описание:</b> {usage}"
-        )
-
-
-    # ===== Лоты участников =====
-    offers = await list_active_offers()
-    offer_blocks = []
-    for o in offers:
-        seller_id = o["seller_id"]
-        price = o["price"]
-        link = o["link"] or "(ссылка не указана)"
-        offer_id = o["offer_id"]
-
-        # юзерка продавца (если нет username — выводим кликабельное имя)
-        try:
-            member = await message.bot.get_chat_member(message.chat.id, seller_id)
-            seller_repr = mention_html(seller_id, member.user.full_name or "Участник")
-        except Exception:
-            seller_repr = mention_html(seller_id, "Участник")
-
-        offer_blocks.append(
-            f"Товар: {link}\n"
-            f"Номер лота: {offer_id}\n"
-            f"Цена: {fmt_money(price)}\n"
-            f"Продавец: {seller_repr}\n"
-            f"Команда покупки: купить лот {offer_id}"
-        )
-
-
-    turnover_line = (
-        f"📈 <b>Оборот</b>: 24ч — {fmt_money(t24)} • 7д — {fmt_money(t7)} • 30д — {fmt_money(t30)}"
-    )
-    burn_line = f"🔥 <b>Сжигание на рынке</b>: {fmt_percent_bps(burn_bps)}"
-
-    parts = []
-    parts.append("🛒 <b>РЫНОК</b>\n\n")
-    parts.append(f"💎 Эмеральд: {fmt_money(price_emerald)}\nКоманда покупки: купить эмеральд\n\n")
-    parts.append("🎖 <b>ПЕРКИ</b>\n")
-    parts.append(perks_header)
-    parts.append("\n\n".join(perk_blocks) if perk_blocks else "Пока ничего нет.")
-    parts.append("\n\n📦 <b>ЛОТЫ УЧАСТНИКОВ</b>\n")
-    parts.append("\n\n".join(offer_blocks) if offer_blocks else "Пока нет активных лотов.")
-    parts.append("\n\n" + turnover_line + "\n" + burn_line)
-
-    txt = "".join(parts)
-
     try:
-        # aiogram v3
-        await message.reply(
-            txt,
-            parse_mode="HTML",
-            link_preview_options=types.LinkPreviewOptions(is_disabled=True)
+        price_emerald = await get_price_emerald()
+        burn_bps = await get_burn_bps()
+
+        t24  = await get_market_turnover_days(1)
+        t7   = await get_market_turnover_days(7)
+        t30  = await get_market_turnover_days(30)
+
+        # Индексы/шансы перков и связанные величины
+        shield = await get_perk_shield_chance()
+        croup  = await get_perk_croupier_chance()
+        phil   = await get_perk_philanthrope_chance()
+        lucky  = await get_perk_lucky_chance()
+        bonus  = await get_stipend_bonus()   # надбавка к жалованию (сумма)
+        theft  = await get_income()          # размер удачной кражи (сумма)
+
+        def perk_display_name(code: str, mode: str = "cap") -> str:
+            if mode == "caps":
+                return code.upper()
+            return code.capitalize()
+
+        perks_header = "Команда покупки: купить перк <имя перка>"
+
+        # ===== Перки =====
+        perk_blocks = []
+        for code, (emoji, title) in PERK_REGISTRY.items():
+            price = await get_price_perk(code)
+            price_str = f"{fmt_int(price)} 🪙" if price is not None else "не продаётся"
+            name = perk_display_name(code, mode="caps")  # "CAPS" или "cap"
+
+            if code == "надбавка":
+                usage = f"автоматический бонус при использовании «получить жалование». текущая надбавка: +{fmt_money(bonus)}"
+            elif code == "кража":
+                usage = f"возможность украсть по команде «украсть» / «своровать» (reply). сумма удачной кражи: {fmt_money(theft)}"
+            elif code == "щит":
+                usage = f"шанс уклониться от кражи: {shield}%"
+            elif code == "крупье":
+                usage = f"шанс рефанда при проигрыше в играх: {croup}%"
+            elif code == "филантроп":
+                usage = f"шанс что ваш дождь окатит еще одного: {phil}%"
+            elif code == "везунчик":
+                usage = f"шанс попасть под чужой дождь: {lucky}%"
+            elif code == "премия":
+                usage = "модель премии: 20%×2 | 50%×1 | 10%×0.5 | 20%×0"
+            else:
+                usage = "—"
+
+            perk_blocks.append(
+                f"{emoji} <b>{name}</b>\n"
+                f"<b>Цена:</b> {price_str}\n"
+                f"<b>Описание:</b> {usage}"
+            )
+
+
+        # ===== Лоты участников =====
+        offers = await list_active_offers()
+        offer_blocks = []
+        for o in offers:
+            seller_id = o["seller_id"]
+            price = o["price"]
+            link = html.escape(o["link"] or "(ссылка не указана)")
+            offer_id = o["offer_id"]
+
+            # юзерка продавца (если нет username — выводим кликабельное имя)
+            try:
+                member = await message.bot.get_chat_member(message.chat.id, seller_id)
+                seller_repr = mention_html(seller_id, member.user.full_name or "Участник")
+            except Exception:
+                seller_repr = mention_html(seller_id, "Участник")
+
+            offer_blocks.append(
+                f"Товар: {link}\n"
+                f"Номер лота: {offer_id}\n"
+                f"Цена: {fmt_money(price)}\n"
+                f"Продавец: {seller_repr}\n"
+                f"Команда покупки: купить лот {offer_id}"
+            )
+
+
+        turnover_line = (
+            f"📈 <b>Оборот</b>: 24ч — {fmt_money(t24)} • 7д — {fmt_money(t7)} • 30д — {fmt_money(t30)}"
         )
-    except TypeError:
-        # aiogram v2
-        await message.reply(
-            txt,
-            parse_mode="HTML",
-            disable_web_page_preview=True
-        )
+        burn_line = f"🔥 <b>Сжигание на рынке</b>: {fmt_percent_bps(burn_bps)}"
+
+        parts = []
+        parts.append("🛒 <b>РЫНОК</b>\n\n")
+        parts.append(f"💎 <b>Эмеральд:</b> {fmt_money(price_emerald)}\n<b>Команда покупки:</b> купить эмеральд\n\n")
+        parts.append("🎖 <b>ПЕРКИ</b>\n")
+        parts.append(perks_header + "\n\n")
+        parts.append("\n\n".join(perk_blocks) if perk_blocks else "Пока ничего нет.")
+        parts.append("\n\n📦 <b>ЛОТЫ УЧАСТНИКОВ</b>\n")
+        parts.append("\n\n".join(offer_blocks) if offer_blocks else "Пока нет активных лотов.")
+        parts.append("\n\n" + turnover_line + "\n" + burn_line)
+
+        txt = "".join(parts)
+
+        try:
+            # aiogram v3
+            await message.reply(
+                txt,
+                parse_mode="HTML",
+                link_preview_options=types.LinkPreviewOptions(is_disabled=True)
+            )
+        except TypeError:
+            # aiogram v2
+            await message.reply(
+                txt,
+                parse_mode="HTML",
+                disable_web_page_preview=True
+            )
+    except Exception as e:
+        await message.reply(f"⚠️ Ошибка рынка: {e!r}")   
 
 async def handle_offer_create(message: types.Message, link: str, price: int):
     if price <= 0:
