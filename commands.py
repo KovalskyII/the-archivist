@@ -1526,6 +1526,12 @@ async def handle_market_show(message: types.Message):
     bonus  = await get_stipend_bonus()   # надбавка к жалованию (сумма)
     theft  = await get_income()          # размер удачной кражи (сумма)
 
+    def perk_display_name(code: str, mode: str = "cap") -> str:
+        if mode == "caps":
+            return code.upper()
+        return code.capitalize()
+
+
     perks_header = ("Команда покупки: купить перк <имя перка>")
     # ===== Перки =====
     # Перки
@@ -1533,6 +1539,7 @@ async def handle_market_show(message: types.Message):
     for code, (emoji, title) in PERK_REGISTRY.items():
         price = await get_price_perk(code)
         price_str = f"{fmt_int(price)} 🪙" if price is not None else "не продаётся"
+        name = perk_display_name(code, mode="caps")  # "CAPS" или "cap"
 
         # для витрины убираем приписки в скобках только визуально
         title_base = title.split(" (", 1)[0]
@@ -1555,7 +1562,7 @@ async def handle_market_show(message: types.Message):
             usage = "—"
 
         perk_blocks.append(
-            f"{emoji} <b>{code}</b>\n"
+            f"{emoji} <b>{name}</b>\n"
             f"<b>Цена:</b> {price_str}\n"
             f"<b>Описание:</b> {usage}"
         )
