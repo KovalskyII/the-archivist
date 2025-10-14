@@ -1455,11 +1455,11 @@ async def handle_stipend_claim(message: types.Message):
 
     # ответ
     lines = [f"💼 Выплачено жалование: {fmt_money(total)}."]
-    lines.append(f"— база: {fmt_money(base)}")
+    lines.append(f"база: {fmt_money(base)}")
     if bonus > 0:
-        lines.append(f"— надбавка: {fmt_money(bonus)}")
+        lines.append(f"надбавка: {fmt_money(bonus)}")
     if "премия" in perks:
-        lines.append(f"— {premium_note}: {fmt_money(premium_bonus)}")
+        lines.append(f"{premium_note}: {fmt_money(premium_bonus)}")
     await message.reply("\n".join(lines))
 
 
@@ -1549,7 +1549,7 @@ async def handle_market_show(message: types.Message):
             elif code == "щит":
                 usage = f"шанс уклониться от кражи: {shield}%"
             elif code == "крупье":
-                usage = f"шанс рефанда при проигрыше в играх: {croup}%"
+                usage = f"шанс 50% рефанда при проигрыше в играх: {croup}%"
             elif code == "филантроп":
                 usage = f"шанс что ваш дождь окатит еще одного: {phil}%"
             elif code == "везунчик":
@@ -1583,11 +1583,11 @@ async def handle_market_show(message: types.Message):
                 seller_repr = mention_html(seller_id, "Участник")
 
             offer_blocks.append(
-                f"Товар: {link}\n"
-                f"Номер лота: {offer_id}\n"
-                f"Цена: {fmt_money(price)}\n"
-                f"Продавец: {seller_repr}\n"
-                f"Команда покупки: купить лот {offer_id}"
+                f"<b>Товар:</b> {link}\n"
+                f"<b>Номер лота:</b> {offer_id}\n"
+                f"<b>Цена:</b> {fmt_money(price)}\n"
+                f"<b>Продавец:</b> {seller_repr}\n"
+                f"<b>Команда покупки:</b> купить лот {offer_id}"
             )
 
 
