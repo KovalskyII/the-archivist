@@ -72,6 +72,12 @@ PERK_REGISTRY = {
     "иммунитет": ("🛡️", "Иммунитет к бану"),
     "надбавка": ("💼", "Надбавка к жалованию"),
     "вор": ("🗡️", "Своровать нуары"),
+    # NEW:
+    "щит": ("🛡️", "Щит от кражи"),              # 50% сорвать кражу
+    "крупье": ("🎩", "Крупье"),                 # 15% рефанд 50% ставки при проигрыше
+    "филантроп": ("🎁", "Филантроп"),           # 15% шестой получатель дождя за счёт сейфа
+    "везунчик": ("🍀", "Везунчик"),             # 33% стать шестым в чужом дожде
+    "премия": ("💼", "Премия"),                  # вместо «надбавки»: 0×/1×/2×
 }
 
 def mention_html(user_id: int, fallback: str = "Участник") -> str:
@@ -93,6 +99,13 @@ def render_perks(perk_codes: set[str]) -> str:
     for _, line in sorted(items):
         lines.append(line)
     return "\n".join(lines)
+
+def chance(pct: float) -> bool:
+    try:
+        return random.random() < (float(pct) / 100.0)
+    except:
+        return False
+
 
 # -------- вспомогательные форматтеры --------
 
@@ -945,10 +958,55 @@ async def handle_dozhd(message: types.Message):
     base = total // n
     rest = total % n
     per_user = [base + (1 if i < rest else 0) for i in range(n)]
+
     await change_balance(giver_id, -total, "дождь", giver_id)
     for (uid, _name), amt in zip(recipients, per_user):
         if amt > 0:
             await change_balance(uid, amt, "дождь", giver_id)
+    await change_balance(giver_id, -total, "дождь", giver_id)
+    for (uid, _name), amt in zip(recipients, per_user):
+        if amt > 0:
+            await change_balance(uid, amt, "дождь", giver_id)
+
+    # NEW: «Филантроп» — 15% шанс добавить шестого получателя с такой же долей (из сейфа)
+    giver_perks = await get_perks(giver_id)
+    base_share = per_user[0] if per_user else 0
+    added_sixth = False
+    extra_lines = []
+
+    if "филантроп" in giver_perks and base_share > 0 and chance(15):
+        # найдём кандидата, не из текущих 5
+        taken_ids = {uid for uid, _ in recipients}
+        extra_pool = [(uid, name) for uid, name in eligible if uid not in taken_ids]
+        if extra_pool:
+            sixth_uid, sixth_name = random.choice(extra_pool)
+            await change_balance(sixth_uid, base_share, "дождь_филантроп", giver_id)
+            extra_lines.append(f"{mention_html(sixth_uid, sixth_name)} — получил дополнительно {fmt_money(base_share)} (филантроп)")
+            added_sixth = True
+
+    # NEW: «Везунчик» — 33% шанс стать шестым получателем (если ещё не добавили филантропа)
+    if not added_sixth:
+        # соберём всех с перком «везунчик», кто не в пятёрке
+        lucky_pool = []
+        taken_ids = {uid for uid, _ in recipients}
+        for uid, name in eligible:
+            if uid in taken_ids:
+                continue
+            user_perks = await get_perks(uid)
+            if "везунчик" in user_perks and chance(33):
+                lucky_pool.append((uid, name))
+        if lucky_pool and base_share > 0:
+            lucky_uid, lucky_name = random.choice(lucky_pool)
+            await change_balance(lucky_uid, base_share, "дождь_везунчик", giver_id)
+            extra_lines.append(f"{mention_html(lucky_uid, lucky_name)} — удача улыбнулась {fmt_money(base_share)}")
+
+    breakdown = [
+        f"{mention_html(uid, name)} — намок на {fmt_money(amt)}"
+        for (uid, name), amt in zip(recipients, per_user) if amt > 0
+    ]
+    if extra_lines:
+        breakdown.extend(extra_lines)
+
     breakdown = [
         f"{mention_html(uid, name)} — намок на {fmt_money(amt)}"
         for (uid, name), amt in zip(recipients, per_user) if amt > 0
@@ -1049,6 +1107,14 @@ async def handle_kubik(message: types.Message):
                 f"Вы потеряли {fmt_money(amount)}.",
                 parse_mode="HTML"
             )
+            # NEW: «Крупье» — 15% шанс вернуть 50% ставки при проигрыше
+            user_perks = await get_perks(user_id)
+            if "крупье" in user_perks and chance(15):
+                refund = amount // 2
+                if refund > 0:
+                    await change_balance(user_id, refund, "крупье_рефанд(кубик)", user_id)
+                    await message.reply(f"🎩 Крупье пожалел вас и вернул {fmt_money(refund)}.")
+
 
 async def handle_darts(message: types.Message):
     m = re.match(r"^\s*ставлю\s+(\d+)\s+на\s+(?:🎯|дартс)\s*$", message.text.strip(), re.IGNORECASE)
@@ -1092,6 +1158,14 @@ async def handle_darts(message: types.Message):
                 f"🙈 Не попал. {mention_html(user_id, message.from_user.full_name)} теряет {fmt_money(amount)}.",
                 parse_mode="HTML"
             )
+            # NEW: «Крупье» — 15% шанс вернуть 50% ставки при проигрыше
+            user_perks = await get_perks(user_id)
+            if "крупье" in user_perks and chance(15):
+                refund = amount // 2
+                if refund > 0:
+                    await change_balance(user_id, refund, "крупье_рефанд(кубик)", user_id)
+                    await message.reply(f"🎩 Крупье пожалел вас и вернул {fmt_money(refund)}.")
+
 
 async def handle_bowling(message: types.Message):
     m = re.match(r"^\s*ставлю\s+(\d+)\s+на\s+(?:🎳|боулинг)\s*$", message.text.strip(), re.IGNORECASE)
@@ -1135,6 +1209,13 @@ async def handle_bowling(message: types.Message):
                 f"💨 Мимо кеглей. {mention_html(user_id, message.from_user.full_name)} теряет {fmt_money(amount)}.",
                 parse_mode="HTML"
             )
+            # NEW: «Крупье» — 15% шанс вернуть 50% ставки при проигрыше
+            user_perks = await get_perks(user_id)
+            if "крупье" in user_perks and chance(15):
+                refund = amount // 2
+                if refund > 0:
+                    await change_balance(user_id, refund, "крупье_рефанд(кубик)", user_id)
+                    await message.reply(f"🎩 Крупье пожалел вас и вернул {fmt_money(refund)}.")
 
 
 
@@ -1180,6 +1261,14 @@ async def handle_slots(message: types.Message):
                 f"🍒 Не повезло. {mention_html(user_id, message.from_user.full_name)} теряет {fmt_money(amount)}.",
                 parse_mode="HTML"
             )
+            # NEW: «Крупье» — 15% шанс вернуть 50% ставки при проигрыше
+            user_perks = await get_perks(user_id)
+            if "крупье" in user_perks and chance(15):
+                refund = amount // 2
+                if refund > 0:
+                    await change_balance(user_id, refund, "крупье_рефанд(кубик)", user_id)
+                    await message.reply(f"🎩 Крупье пожалел вас и вернул {fmt_money(refund)}.")
+
 
 
 # ------------- перки: мои/чужие, даровать/уничтожить, ЗП, вор -------------
@@ -1333,8 +1422,16 @@ async def handle_theft(message: types.Message):
     if victim.is_bot:
         await message.reply("Красть у бота бессмысленно.")
         return
+
+    # NEW: «Щит» у жертвы — 50% срыв кражи
+    victim_perks = await get_perks(victim.id)
+    if "щит" in victim_perks and chance(50):
+        await record_theft(thief_id, 0, victim.id, success=False)
+        await message.reply("🛡️ Щит жертвы вспыхнул — пришлось ретироваться. Ждите 24 часа.")
+        return
+
     seconds = await get_seconds_since_last_theft(thief_id)
-    COOLDOWN = 12 * 60 * 60
+    COOLDOWN = 24 * 60 * 60
     if seconds is not None and seconds < COOLDOWN:
         remain = COOLDOWN - seconds
         hours = remain // 3600
@@ -1344,11 +1441,10 @@ async def handle_theft(message: types.Message):
     income = await get_income()
     victim_balance = await get_balance(victim.id)
     if victim_balance < income or income <= 0:
-        # неудача, кулдаун фиксируем
         await record_theft(thief_id, 0, victim.id, success=False)
         await message.reply("🐕 Сторожевые собаки подняли лай — пришлось бежать. Придется снова ждать 24 часа.")
         return
-    # успех: перевод victim -> thief
+
     await change_balance(victim.id, -income, "кража", thief_id)
     await change_balance(thief_id, income, "кража", thief_id)
     await record_theft(thief_id, income, victim.id, success=True)
