@@ -1612,14 +1612,6 @@ async def handle_market_show(message: types.Message):
             parse_mode="HTML",
             link_preview_options=types.LinkPreviewOptions(is_disabled=True)
         )
-    except TypeError:
-        # aiogram v2
-        await message.reply(
-            txt,
-            parse_mode="HTML",
-            disable_web_page_preview=True
-        )
-
 
 
 async def handle_offer_create(message: types.Message, link: str, price: int):
