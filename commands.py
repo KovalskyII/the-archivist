@@ -1539,7 +1539,7 @@ async def handle_market_show(message: types.Message):
         if code == "надбавка":
             usage = f"автоматический бонус при использовании «получить жалование». текущая надбавка: +{fmt_money(bonus)}"
         elif code == "кража":
-            usage = f"возможность украсть по команде «украсть» / «своровать» (reply). сумма удачной кражи:</b> {fmt_money(theft)}"
+            usage = f"возможность украсть по команде «украсть» / «своровать» (reply). сумма удачной кражи: {fmt_money(theft)}"
         elif code == "щит":
             usage = f"<b>Шанс уклониться от кражи:</b> {shield}%"
         elif code == "крупье":
