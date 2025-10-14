@@ -1605,7 +1605,7 @@ async def handle_market_show(message: types.Message):
         "🎖 <b>ПЕРКИ</b>\n" +
         perks_header +
         ("\n\n".join(perk_blocks) if perk_blocks else "Пока ничего нет.") +
-        "\n\n"
+        "\n\n" +
         "📦 <b>ЛОТЫ УЧАСТНИКОВ</b>\n" +
         ("\n\n".join(offer_blocks) if offer_blocks else "Пока нет активных лотов.") +
         "\n\n" +
