@@ -1533,7 +1533,7 @@ async def handle_market_show(message: types.Message):
                 return code.upper()
             return code.capitalize()
 
-        perks_header = "Команда покупки: купить перк <имя перка>"
+        perks_header = "Команда покупки: купить перк (имя перка)"
 
         # ===== Перки =====
         perk_blocks = []
