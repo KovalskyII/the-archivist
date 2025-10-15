@@ -1014,7 +1014,7 @@ async def handle_dozhd(message: types.Message):
         if extra_pool:
             sixth_uid, sixth_name = random.choice(extra_pool)
             await change_balance(sixth_uid, base_share, "дождь_филантроп", giver_id)
-            extra_lines.append(f"{mention_html(sixth_uid, sixth_name)} — получил дополнительно {fmt_money(base_share)} (филантроп)")
+            extra_lines.append(f"{mention_html(sixth_uid, sixth_name)} — получил дополнительно {fmt_money(base_share)} от филантропа")
             added_sixth = True
 
     # NEW: «Везунчик» — 33% шанс стать шестым получателем (если ещё не добавили филантропа)
@@ -1032,7 +1032,7 @@ async def handle_dozhd(message: types.Message):
         if lucky_pool and base_share > 0:
             lucky_uid, lucky_name = random.choice(lucky_pool)
             await change_balance(lucky_uid, base_share, "дождь_везунчик", giver_id)
-            extra_lines.append(f"{mention_html(lucky_uid, lucky_name)} — удача улыбнулась {fmt_money(base_share)}")
+            extra_lines.append(f"{mention_html(lucky_uid, lucky_name)} — удача улыбнулась везунчику на {fmt_money(base_share)}")
 
     breakdown = [
         f"{mention_html(uid, name)} — намок на {fmt_money(amt)}"
