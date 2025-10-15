@@ -1642,6 +1642,8 @@ async def handle_market_show(message: types.Message):
                 usage = f"шанс попасть под чужой дождь: {lucky}%"
             elif code == "премия":
                 usage = "модель премии: 20%×2 | 50%×1 | 10%×0.5 | 20%×0"
+            elif code == "грабитель":
+                usage = "КАВАБАНГА!!!"
             else:
                 usage = "—"
 
