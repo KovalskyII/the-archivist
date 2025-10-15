@@ -35,6 +35,7 @@ from db import (
     bank_touch_all_and_total, bank_zero_all_and_sum,
     get_cell_dep_fee_pct, get_cell_stor_fee_pct,
     get_seconds_since_last_bank_rob, record_bank_rob,
+    get_bank_rob_cooldown_days, set_bank_rob_cooldown_days,
 
 
     # анти-дубль
@@ -356,6 +357,10 @@ async def handle_message(message: types.Message):
 
     if text_l == "ограбить банк":
         await handle_bank_rob_cmd(message)
+        return
+
+    if text_l in ("вывод все", "вывести все"):
+        await handle_cell_withdraw_all_cmd(message)
         return
 
 
@@ -683,6 +688,34 @@ async def handle_message(message: types.Message):
             cur = await get_perk_lucky_chance()
             await message.reply(f"🍀 Шанс перка «Везунчик» обновлён: {cur}%")
             return
+
+        # банк комиссия депозит <P>
+        m = re.match(r"^банк\s+комиссия\s+депозит\s+(\d+)\s*$", text_l)
+        if m:
+            p = int(m.group(1))
+            await set_cell_dep_fee_pct(p)
+            cur = await get_cell_dep_fee_pct()
+            await message.reply(f"🛠️ Комиссия депозита установлена: {cur}%")
+            return
+
+        # банк комиссия хранение <P> (за 4 часа)
+        m = re.match(r"^банк\s+комиссия\s+хранение\s+(\d+)\s*$", text_l)
+        if m:
+            p = int(m.group(1))
+            await set_cell_stor_fee_pct(p)
+            cur = await get_cell_stor_fee_pct()
+            await message.reply(f"🛠️ Комиссия хранения установлена: {cur}% / 4ч")
+            return
+
+        # банк кд <дней>
+        m = re.match(r"^грабитель\s+кд\s+(\d+)\s*$", text_l)
+        if m:
+            d = int(m.group(1))
+            await set_bank_rob_cooldown_days(d)
+            cur = await get_bank_rob_cooldown_days()
+            await message.reply(f"🛠️ КД перка «Грабитель» установлен: {cur} дн.")
+            return
+
 
 
 # ---------- базовые куски (ролы, фото, рейтинги и т.п.) ----------
@@ -2000,6 +2033,7 @@ async def handle_commands_catalog(message: types.Message):
         "выступить - команда Героя Дня, разовый гонорар",
         "депозит <N> — пополнить свою ячейку",
         "вывод <N> — вывести из ячейки в карман",
+        "вывод все / вывести все - вывести весь баланс"
         "моя ячейка — показать баланс своей ячейки",
         "банк — сводка по сумме всех ячеек и ставкам комиссий",
 
@@ -2023,11 +2057,14 @@ async def handle_commands_curator(message: types.Message):
         return
 
     blocks = [
-        ("🏦 Сейф/экономика", [
+        ("🏦 Сейф/Банк/экономика", [
             "включить сейф <CAP> / перезапустить сейф <CAP> подтверждаю",
             "сейф — сводка экономики",
             "сжигание <bps> — 100 bps = 1%",
             "кража <N> — сумма удачной кражи",
+            "банк комиссия депозит <P> - процент комиссии за вклад в ячейку",
+            "банк комиссия хранение <P> - процент комиссии за хранение в ячейке",
+
         ]),
         ("🎰 Казино", [
             "казино открыть|закрыть",
@@ -2046,6 +2083,7 @@ async def handle_commands_curator(message: types.Message):
             "крупье шанс <P> — шанс частичного возврата ставки при проигрыше»",
             "филантроп шанс <P> — шанс подарка шестому при дожде",
             "везунчик шанс <P> — шанс автопопадания в дождь",
+            "грабитель кд <дней> - кд перка грабитель"
         ]),
         ("🎭 Роли и ключи", [
             "назначить \"Роль\" описание (reply) / снять роль (reply)",
@@ -2234,6 +2272,22 @@ async def handle_cell_withdraw_cmd(message: types.Message, amount: int):
         f"Баланс ячейки: {fmt_money(new_cell)}"
     )
 
+async def handle_cell_withdraw_all_cmd(message: types.Message):
+    # узнаём текущий баланс ячейки и выводим всё
+    bal = await cell_get_balance(message.from_user.id)
+    if bal <= 0:
+        await message.reply("В ячейке пусто.")
+        return
+    taken, new_cell = await cell_withdraw(message.from_user.id, bal)
+    if taken > 0:
+        await change_balance(message.from_user.id, taken, "cell_withdraw_all_payout", message.from_user.id)
+    await message.reply(
+        "✅ Вывод всего баланса\n"
+        f"Выведено: {fmt_money(taken)}\n"
+        f"Баланс ячейки: {fmt_money(new_cell)}"
+    )
+
+
 async def handle_cell_balance_cmd(message: types.Message):
     bal = await cell_get_balance(message.from_user.id)
     await message.reply("🔒 Ячейка\n" f"Баланс: {fmt_money(bal)}")
@@ -2256,15 +2310,16 @@ async def handle_bank_rob_cmd(message: types.Message):
         await message.reply("У Вас нет такой привилегии.")
         return
 
-    # КД 7 дней
+    # КД из конфига (в днях)
     seconds = await get_seconds_since_last_bank_rob(user_id)
-    COOLDOWN = 7 * 24 * 60 * 60
+    cd_days = await get_bank_rob_cooldown_days()
+    COOLDOWN = cd_days * 24 * 60 * 60
     if seconds is not None and seconds < COOLDOWN:
         remain = COOLDOWN - seconds
         days  = remain // (24*3600)
         hours = (remain % (24*3600)) // 3600
         minutes = (remain % 3600) // 60
-        await message.reply(f"Повторное ограбление через {days}д {hours}ч {minutes}м.")
+        await message.reply(f"Подготовка нового налёта возьмет еще {days}д {hours}ч {minutes}м.")
         return
 
     roll = random.randint(1, 100)

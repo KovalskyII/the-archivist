@@ -509,6 +509,16 @@ async def cell_touch(user_id: int) -> tuple[int,int]:
     await _cell_set_last_ts(user_id, last + intervals*FOUR_HOURS)
     return total_fee, bal
 
+# ==== BANK: КД грабителя (в днях) ====
+CFG_BANK_ROB_CD_DAYS = "bank_rob_cd_days"
+
+async def get_bank_rob_cooldown_days() -> int:
+    return await get_config_int(CFG_BANK_ROB_CD_DAYS, 7)  # дефолт 7 дней
+
+async def set_bank_rob_cooldown_days(v: int):
+    await set_config_int(CFG_BANK_ROB_CD_DAYS, max(1, v))
+
+
 async def cell_get_balance(user_id: int) -> int:
     await cell_touch(user_id)
     return await _cell_calc_balance(user_id)
@@ -1078,7 +1088,7 @@ async def get_market_turnover_days(days: int) -> int:
                 row = await cur.fetchone()
                 total += int(row[0] or 0)
     return total
-    
+
 # ==== Ограбление банка (КД и лог) ====
 async def get_seconds_since_last_bank_rob(user_id: int) -> int | None:
     async with aiosqlite.connect(DB_PATH) as db:
