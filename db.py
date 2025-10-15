@@ -426,10 +426,12 @@ FOUR_HOURS = 4 * 60 * 60  # в секундах
 
 async def _now_ts(db=None) -> int:
     if db is not None:
-        row = await db.execute_fetchone("SELECT CAST(strftime('%s','now') AS INTEGER)")
+        async with db.execute("SELECT CAST(strftime('%s','now') AS INTEGER)") as cur:
+            row = await cur.fetchone()
         return int(row[0])
     async with aiosqlite.connect(DB_PATH) as xdb:
-        row = await xdb.execute_fetchone("SELECT CAST(strftime('%s','now') AS INTEGER)")
+        async with xdb.execute("SELECT CAST(strftime('%s','now') AS INTEGER)") as cur:
+            row = await cur.fetchone()
         return int(row[0])
 
 async def _cell_get_last_ts(user_id: int) -> int | None:
