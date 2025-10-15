@@ -1058,7 +1058,7 @@ async def handle_dozhd(message: types.Message):
         f"{name_with_tags(uid, name)} — намок на {fmt_money(amt)}"
         for (uid, name), amt in zip(recipients, per_user) if amt > 0
     ]
-    
+
     if extra_lines:
         breakdown.extend(extra_lines)
     
@@ -1519,7 +1519,7 @@ async def handle_theft(message: types.Message):
     victim_balance = await get_balance(victim.id)
     if victim_balance < income or income <= 0:
         await record_theft(thief_id, 0, victim.id, success=False)
-        await message.reply("🐕 Сторожевые собаки подняли лай — пришлось бежать. Придется снова ждать 12 часов.")
+        await message.reply(f"🐕 Сторожевые собаки подняли лай — пришлось бежать. Придется снова ждать {COOLDOWN} часов.")
         return
 
     await change_balance(victim.id, -income, "кража", thief_id)
@@ -2118,7 +2118,7 @@ async def handle_hero_concert(message: types.Message):
         return
 
     if await hero_has_claimed_today(chat_id, user_id, hours=12):
-        await message.reply("Сегодня гонорар уже получен. Повторить можно через 12 часов.")
+        await message.reply("Ваш гонорар уже получен. На следующем концерте выступит кто-то еще.")
         return
 
     reward = random.randint(HERO_CONCERT_MIN, HERO_CONCERT_MAX)
