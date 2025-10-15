@@ -239,7 +239,7 @@ async def handle_message(message: types.Message):
         await handle_perks_of(message)
         return
 
-    if text_l == "получить жалование":
+    if text_l in ("получить жалование", "я сру"):
         await handle_stipend_claim(message)
         return
 
@@ -2099,7 +2099,7 @@ async def handle_hero_concert(message: types.Message):
     if await hero_has_claimed_today(chat_id, user_id, hours=12):
         await message.reply("Сегодня гонорар уже получен. Повторить можно через 12 часов.")
         return
-        
+
     reward = random.randint(HERO_CONCERT_MIN, HERO_CONCERT_MAX)
     await hero_record_claim(chat_id, user_id, reward)
     await change_balance(user_id, reward, "выступить", user_id)
