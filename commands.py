@@ -350,7 +350,7 @@ async def handle_message(message: types.Message):
         await handle_cell_withdraw_cmd(message, int(m.group(1)))
         return
 
-    if text_l == "моя ячейка":
+    if text_l in ("ячейка", "моя ячейка"):
         await handle_cell_balance_cmd(message)
         return
 
@@ -362,7 +362,7 @@ async def handle_message(message: types.Message):
         await handle_bank_rob_cmd(message)
         return
 
-    if text_l in ("вывод все", "вывести все"):
+    if text_l in ("вывод все", "вывести все","вывод всё", "вывести всё"):
         await handle_cell_withdraw_all_cmd(message)
         return
 
@@ -2038,8 +2038,8 @@ async def handle_commands_catalog(message: types.Message):
         "выступить - команда Героя Дня, разовый гонорар",
         "депозит <N> — пополнить свою ячейку",
         "вывод <N> — вывести из ячейки в карман",
-        "вывод все / вывести все - вывести весь баланс",
-        "моя ячейка — показать баланс своей ячейки",
+        "вывод все/всё / вывести все/всё - вывести весь баланс",
+        "моя ячейка / ячейка — показать баланс своей ячейки",
         "банк — сводка по сумме всех ячеек и ставкам комиссий",
 
     ]
