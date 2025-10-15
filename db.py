@@ -668,8 +668,11 @@ async def hero_get_current(chat_id: int) -> int | None:
         # если встретили протухшую запись — продолжаем искать выше по истории
     return None
 
-async def hero_has_claimed_today(chat_id: int, user_id: int) -> bool:
-    """Проверяем, был ли уже hero_claim сегодня в этом чате."""
+async def hero_has_claimed_today(chat_id: int, user_id: int, hours: int = 12) -> bool:
+    """
+    True, если с последнего hero_claim в этом чате прошло меньше `hours` часов.
+    По умолчанию — 12 часов.
+    """
     async with aiosqlite.connect(DB_PATH) as db:
         async with db.execute("""
             SELECT date FROM history
@@ -677,13 +680,19 @@ async def hero_has_claimed_today(chat_id: int, user_id: int) -> bool:
             ORDER BY id DESC LIMIT 1
         """, (user_id, f"%chat_id={chat_id}%")) as cur:
             row = await cur.fetchone()
+
     if not row:
         return False
+
+    # SQLite кладёт 'YYYY-MM-DD HH:MM:SS' (без таймзоны) — считаем это UTC.
+    ts = row[0]
     try:
-        last = datetime.fromisoformat(row[0] + ("+00:00" if "Z" not in row[0] and "+" not in row[0] else ""))
+        last = datetime.fromisoformat(ts + ("+00:00" if "Z" not in ts and "+" not in ts else ""))
     except Exception:
         return False
-    return _same_utc_day(_utc_now(), last)
+
+    now = datetime.now(timezone.utc)
+    return (now - last) < timedelta(hours=hours)
 
 async def hero_record_claim(chat_id: int, user_id: int, amount: int):
     """Фиксируем разовый гонорар героя дня в конкретном чате."""
