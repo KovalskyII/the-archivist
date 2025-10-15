@@ -30,6 +30,12 @@ from db import (
     get_perk_croupier_chance, set_perk_croupier_chance,
     get_perk_philanthrope_chance, set_perk_philanthrope_chance,
     get_perk_lucky_chance, set_perk_lucky_chance,
+        # банк / ячейки
+    cell_get_balance, cell_deposit, cell_withdraw,
+    bank_touch_all_and_total, bank_zero_all_and_sum,
+    get_cell_dep_fee_pct, get_cell_stor_fee_pct,
+    get_seconds_since_last_bank_rob, record_bank_rob,
+
 
     # анти-дубль
     is_msg_processed, mark_msg_processed,
@@ -82,6 +88,7 @@ PERK_REGISTRY = {
     "филантроп": ("🎁", "Филантроп"),           # 15% шестой получатель дождя за счёт сейфа
     "везунчик": ("🍀", "Везунчик"),             # 33% стать шестым в чужом дожде
     "премия": ("🏅", "Премия"),
+    "грабитель": ("🧨", "Грабитель банка"),
 }
 
 def mention_html(user_id: int, fallback: str = "Участник") -> str:
@@ -327,6 +334,30 @@ async def handle_message(message: types.Message):
         await _pin_paid(message, loud=False); return
     if text_l == "закрепить пост громко":
         await _pin_paid(message, loud=True); return
+
+        # ===== ЯЧЕЙКИ / БАНК =====
+    m = re.match(r"^депозит\s+(\d+)$", text_l)
+    if m:
+        await handle_cell_deposit_cmd(message, int(m.group(1)))
+        return
+
+    m = re.match(r"^(?:вывод|вывести)\s+(\d+)$", text_l)
+    if m:
+        await handle_cell_withdraw_cmd(message, int(m.group(1)))
+        return
+
+    if text_l == "моя ячейка":
+        await handle_cell_balance_cmd(message)
+        return
+
+    if text_l == "банк":
+        await handle_bank_summary_cmd(message)
+        return
+
+    if text_l == "ограбить банк":
+        await handle_bank_rob_cmd(message)
+        return
+
 
     # ======= ЩЕДРОСТЬ (только Куратор, но работает и в ЛС, и в чате) =======
     if text_l.startswith("щедрость"):
@@ -1967,6 +1998,11 @@ async def handle_commands_catalog(message: types.Message):
         "сейф — сводка экономики клуба",
         "концерт - раз в 12 часов выбирает Героя Дня",
         "выступить - команда Героя Дня, разовый гонорар",
+        "депозит <N> — пополнить свою ячейку",
+        "вывод <N> — вывести из ячейки в карман",
+        "моя ячейка — показать баланс своей ячейки",
+        "банк — сводка по сумме всех ячеек и ставкам комиссий",
+
     ]
     paid = [
     f"закрепить пост (reply) — закрепить выбранное сообщение: {fmt_money(price_pin)}",
@@ -2163,3 +2199,113 @@ async def _generosity_reset_points_for(user_id: int) -> int:
         await insert_history(user_id, "generosity_pay_points", pts, "reset")
     return pts
 
+async def handle_cell_deposit_cmd(message: types.Message, amount: int):
+    if amount <= 0:
+        await message.reply("Сумма должна быть положительной.")
+        return
+    bal = await get_balance(message.from_user.id)
+    if amount > bal:
+        await message.reply(f"Недостаточно нуаров. На руках: {fmt_money(bal)}.")
+        return
+    # списываем с кармана
+    await change_balance(message.from_user.id, -amount, "cell_deposit", message.from_user.id)
+    gross, fee, new_cell = await cell_deposit(message.from_user.id, amount)
+    await message.reply(
+        "✅ Депозит выполнен\n"
+        f"Внесено: {fmt_money(gross)}\n"
+        f"Комиссия: {fmt_money(fee)}\n"
+        f"Зачислено: {fmt_money(gross - fee)}\n"
+        f"Баланс ячейки: {fmt_money(new_cell)}"
+    )
+
+async def handle_cell_withdraw_cmd(message: types.Message, amount: int):
+    if amount <= 0:
+        await message.reply("Сумма должна быть положительной.")
+        return
+    taken, new_cell = await cell_withdraw(message.from_user.id, amount)
+    if taken <= 0:
+        await message.reply("В ячейке недостаточно средств.")
+        return
+    # возвращаем на карман
+    await change_balance(message.from_user.id, taken, "cell_withdraw_payout", message.from_user.id)
+    await message.reply(
+        "✅ Вывод выполнен\n"
+        f"Выведено: {fmt_money(taken)}\n"
+        f"Баланс ячейки: {fmt_money(new_cell)}"
+    )
+
+async def handle_cell_balance_cmd(message: types.Message):
+    bal = await cell_get_balance(message.from_user.id)
+    await message.reply("🔒 Ячейка\n" f"Баланс: {fmt_money(bal)}")
+
+async def handle_bank_summary_cmd(message: types.Message):
+    total = await bank_touch_all_and_total()
+    dep = await get_cell_dep_fee_pct()
+    stor = await get_cell_stor_fee_pct()
+    await message.reply(
+        "🏛 Банк\n"
+        f"Сумма всех ячеек: {fmt_money(total)}\n"
+        f"Комиссия пополнения: {dep}%\n"
+        f"Комиссия хранения: {stor}% / 4ч"
+    )
+
+async def handle_bank_rob_cmd(message: types.Message):
+    user_id = message.from_user.id
+    perks = await get_perks(user_id)
+    if "грабитель" not in perks:
+        await message.reply("У Вас нет такой привилегии.")
+        return
+
+    # КД 7 дней
+    seconds = await get_seconds_since_last_bank_rob(user_id)
+    COOLDOWN = 7 * 24 * 60 * 60
+    if seconds is not None and seconds < COOLDOWN:
+        remain = COOLDOWN - seconds
+        days  = remain // (24*3600)
+        hours = (remain % (24*3600)) // 3600
+        minutes = (remain % 3600) // 60
+        await message.reply(f"Повторное ограбление через {days}д {hours}ч {minutes}м.")
+        return
+
+    roll = random.randint(1, 100)
+    if roll <= 50:
+        # успех
+        _ = await bank_touch_all_and_total()
+        loot = await bank_zero_all_and_sum()
+        await record_bank_rob(user_id, "success", loot)
+        if loot > 0:
+            await change_balance(user_id, loot, "bank_rob_success", user_id)
+        await message.reply(
+            f"🎭 В твоей команде явно был сам Джокер! Вы вынесли всё подчистую. "
+            f"Я насчитал {fmt_money(loot)} нуаров!"
+        )
+        try:
+            await message.bot.send_message(
+                message.chat.id,
+                f"🚨 Банк был ограблен. Ячейки пусты. Персонал напуган. Ущерб оценивается в {fmt_money(loot)}."
+            )
+        except Exception:
+            pass
+        return
+
+    if roll <= 95:
+        # промах
+        await record_bank_rob(user_id, "fail", 0)
+        await message.reply("🚓 Кажется они вызвали копов! Валим!")
+        try:
+            await message.bot.send_message(message.chat.id, "🛡️ Охрана банка отбила нападение грабителей.")
+        except Exception:
+            pass
+        return
+
+    # провал с потерей перка
+    await record_bank_rob(user_id, "busted", 0)
+    await revoke_perk(user_id, "грабитель")
+    await message.reply("🧿 Полиция уже была на месте. Вас ждали. Вы арестованы. Оружие изъято.")
+    try:
+        await message.bot.send_message(
+            message.chat.id,
+            "🕵️ Засада ФБР была удачной. Перк «Грабитель банка» изъят."
+        )
+    except Exception:
+        pass

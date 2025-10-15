@@ -404,6 +404,172 @@ CFG_LIMIT_BET     = "limit_bet"       # 0=нет
 CFG_LIMIT_RAIN    = "limit_rain"      # 0=нет
 CFG_PRICE_EMERALD = "price_emerald"   # цена эмеральда
 # цены перков: key = price_perk:<code>
+# ==== BANK (ячейки): комиссии ====
+CFG_CELL_DEP_FEE_PCT   = "cell_dep_fee_pct"    # комиссия за депозит, % от внесённой суммы
+CFG_CELL_STOR_FEE_PCT  = "cell_stor_fee_pct"   # комиссия хранения, % за каждые 4 часа
+
+async def get_cell_dep_fee_pct() -> int:
+    return await get_config_int(CFG_CELL_DEP_FEE_PCT, 3)  # дефолт 3%
+
+async def set_cell_dep_fee_pct(v: int):
+    await set_config_int(CFG_CELL_DEP_FEE_PCT, max(0, v))
+
+async def get_cell_stor_fee_pct() -> int:
+    return await get_config_int(CFG_CELL_STOR_FEE_PCT, 1)  # дефолт 1% / 4ч
+
+async def set_cell_stor_fee_pct(v: int):
+    await set_config_int(CFG_CELL_STOR_FEE_PCT, max(0, v))
+
+# ===== ЯЧЕЙКИ (БАНК) НА HISTORY =====
+import math
+FOUR_HOURS = 4 * 60 * 60  # в секундах
+
+async def _now_ts(db=None) -> int:
+    if db is not None:
+        row = await db.execute_fetchone("SELECT CAST(strftime('%s','now') AS INTEGER)")
+        return int(row[0])
+    async with aiosqlite.connect(DB_PATH) as xdb:
+        row = await xdb.execute_fetchone("SELECT CAST(strftime('%s','now') AS INTEGER)")
+        return int(row[0])
+
+async def _cell_get_last_ts(user_id: int) -> int | None:
+    # последняя метка времени начисления хранения
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("""
+            SELECT amount FROM history
+            WHERE user_id=? AND action='cell_ts'
+            ORDER BY id DESC LIMIT 1
+        """, (user_id,)) as cur:
+            row = await cur.fetchone()
+    return None if row is None else int(row[0])
+
+async def _cell_set_last_ts(user_id: int, ts: int):
+    await insert_history(user_id, "cell_ts", ts, None)
+
+async def _cell_calc_balance(user_id: int) -> int:
+    """
+    Баланс ячейки = сумма депо - сумма выводов - сумма комиссий хранения.
+    Депозит пишем NET (после входной комиссии).
+    """
+    dep = wd = fee = 0
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("""
+            SELECT action, COALESCE(amount,0) FROM history
+            WHERE user_id=? AND action IN ('cell_dep','cell_wd','cell_fee')
+        """, (user_id,)) as cur:
+            rows = await cur.fetchall()
+    for action, amt in rows:
+        a = int(amt or 0)
+        if action == "cell_dep":
+            dep += a
+        elif action == "cell_wd":
+            wd += a
+        elif action == "cell_fee":
+            fee += a
+    bal = dep - wd - fee
+    return max(0, bal)
+
+async def cell_touch(user_id: int) -> tuple[int,int]:
+    """
+    Применяем накопленные 4-часовые комиссии хранения «лениво».
+    Возвращает (списано_сейчас, новый_баланс).
+    """
+    total_fee = 0
+    async with aiosqlite.connect(DB_PATH) as db:
+        now = await _now_ts(db)
+    last = await _cell_get_last_ts(user_id)
+    if last is None:
+        # первая инициализация метки без списаний
+        await _cell_set_last_ts(user_id, now)
+        return 0, await _cell_calc_balance(user_id)
+
+    intervals = max(0, (now - last) // FOUR_HOURS)
+    if intervals == 0:
+        return 0, await _cell_calc_balance(user_id)
+
+    bal = await _cell_calc_balance(user_id)
+    if bal <= 0:
+        # просто двигаем метку времени
+        await _cell_set_last_ts(user_id, last + intervals*FOUR_HOURS)
+        return 0, 0
+
+    pct = await get_cell_stor_fee_pct()
+    for _ in range(intervals):
+        fee = (bal * pct) // 100
+        if fee <= 0:
+            break
+        # записываем списание и уменьшаем локальный баланс
+        await insert_history(user_id, "cell_fee", fee, None)
+        total_fee += fee
+        bal -= fee
+        if bal <= 0:
+            bal = 0
+            break
+
+    await _cell_set_last_ts(user_id, last + intervals*FOUR_HOURS)
+    return total_fee, bal
+
+async def cell_get_balance(user_id: int) -> int:
+    await cell_touch(user_id)
+    return await _cell_calc_balance(user_id)
+
+async def cell_deposit(user_id: int, gross_amount: int) -> tuple[int,int,int]:
+    """
+    Депозит в ячейку. Возврат: (внесено_брутто, комиссия_входа, новый_баланс_ячейки).
+    Комиссия входа уходит «в сейф» логически (мы логируем её как отдельное событие).
+    """
+    await cell_touch(user_id)
+    dep_pct = await get_cell_dep_fee_pct()
+    fee = (gross_amount * dep_pct) // 100
+    net = max(0, gross_amount - fee)
+    # логируем net как приход в ячейку
+    await insert_history(user_id, "cell_dep", net, f"gross={gross_amount};fee={fee}")
+    if fee > 0:
+        await insert_history(None, "cell_deposit_fee", fee, f"user_id={user_id}")
+    new_bal = await _cell_calc_balance(user_id)
+    return gross_amount, fee, new_bal
+
+async def cell_withdraw(user_id: int, amount: int) -> tuple[int,int]:
+    """
+    Вывод из ячейки. Возврат: (выведено, новый_баланс_ячейки).
+    Деньги на карман зачисляешь в командах через change_balance.
+    """
+    await cell_touch(user_id)
+    bal = await _cell_calc_balance(user_id)
+    take = min(max(0, amount), bal)
+    if take > 0:
+        await insert_history(user_id, "cell_wd", take, None)
+    new_bal = await _cell_calc_balance(user_id)
+    return take, new_bal
+
+async def _cell_users() -> list[int]:
+    # все, кто когда-либо взаимодействовал с ячейками
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("""
+            SELECT DISTINCT user_id FROM history
+            WHERE action IN ('cell_dep','cell_wd','cell_fee','cell_ts')
+              AND user_id IS NOT NULL
+        """) as cur:
+            rows = await cur.fetchall()
+    return [int(r[0]) for r in rows]
+
+async def bank_touch_all_and_total() -> int:
+    total = 0
+    for uid in await _cell_users():
+        await cell_touch(uid)
+        total += await _cell_calc_balance(uid)
+    return total
+
+async def bank_zero_all_and_sum() -> int:
+    total = 0
+    for uid in await _cell_users():
+        await cell_touch(uid)
+        bal = await _cell_calc_balance(uid)
+        if bal > 0:
+            total += bal
+            await insert_history(uid, "cell_wd", bal, "bank_rob")
+    return total
+
 
 async def get_burn_bps() -> int:
     return await get_config_int(CFG_BURN_BPS, 100)  # 1% по умолчанию
@@ -912,3 +1078,19 @@ async def get_market_turnover_days(days: int) -> int:
                 row = await cur.fetchone()
                 total += int(row[0] or 0)
     return total
+    
+# ==== Ограбление банка (КД и лог) ====
+async def get_seconds_since_last_bank_rob(user_id: int) -> int | None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("""
+            SELECT CAST(strftime('%s','now') AS INTEGER) - CAST(strftime('%s', date) AS INTEGER)
+            FROM history
+            WHERE user_id=? AND action='bank_rob'
+            ORDER BY id DESC LIMIT 1
+        """, (user_id,)) as cur:
+            row = await cur.fetchone()
+            return None if row is None else int(row[0])
+
+async def record_bank_rob(user_id: int, outcome: str, amount: int):
+    # outcome: success | fail | busted
+    await insert_history(user_id, "bank_rob", amount, outcome)
