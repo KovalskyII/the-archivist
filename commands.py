@@ -2096,26 +2096,9 @@ async def handle_hero_concert(message: types.Message):
         await message.reply("Вы не являетесь сегодняшним исполнителем.")
         return
 
-    async def hero_has_claimed_today(chat_id: int, user_id: int) -> bool:
-        """True, если с последнего hero_claim прошло меньше 12 часов в этом чате."""
-        async with aiosqlite.connect(DB_PATH) as db:
-            async with db.execute("""
-                SELECT date FROM history
-                WHERE user_id=? AND action='hero_claim' AND reason LIKE ?
-                ORDER BY id DESC LIMIT 1
-            """, (user_id, f"%chat_id={chat_id}%")) as cur:
-                row = await cur.fetchone()
-        if not row:
-            return False
-        try:
-            last = datetime.fromisoformat(row[0] + ("+00:00" if "Z" not in row[0] and "+" not in row[0] else ""))
-        except Exception:
-            return False
-        # 12 часов
-        from datetime import timedelta, timezone
-        now = datetime.now(timezone.utc)
-        return (now - last) < timedelta(hours=12)
-
+    if await hero_has_claimed_today(chat_id, user_id):
+        await message.reply("Сегодня гонорар уже получен. Приходите позже.")
+        return
 
     reward = random.randint(HERO_CONCERT_MIN, HERO_CONCERT_MAX)
     await hero_record_claim(chat_id, user_id, reward)
