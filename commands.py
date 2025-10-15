@@ -993,9 +993,13 @@ async def handle_dozhd(message: types.Message):
     # веса: базовый 100; для "везунчиков" 100 + p_lucky
     p_lucky = await get_perk_lucky_chance()
     weights = []
+    lucky_ids = set()  # соберём всех, у кого есть перк «везунчик»
     for uid, name in eligible:
         perks_u = await get_perks(uid)
-        w = 100 + (p_lucky if "везунчик" in perks_u else 0)
+        is_lucky = ("везунчик" in perks_u)
+        if is_lucky:
+            lucky_ids.add(uid)
+        w = 100 + (p_lucky if is_lucky else 0)
         weights.append(w)
 
     # взвешенная выборка без замены на 5 человек
@@ -1031,6 +1035,12 @@ async def handle_dozhd(message: types.Message):
         if amt > 0:
             await change_balance(uid, amt, "дождь", giver_id)
 
+    # Отметим «везунчиков» среди получателей и добавим резюме
+    lucky_among_recipients = sum(1 for uid, _name in recipients if uid in lucky_ids)
+
+    def name_with_tags(uid, name):
+        tag = " 🍀" if uid in lucky_ids else ""
+        return f"{mention_html(uid, name)}{tag}"
 
     # --- «Филантроп»: шестой равновероятно из оставшихся ---
     giver_perks = await get_perks(giver_id)
@@ -1045,9 +1055,10 @@ async def handle_dozhd(message: types.Message):
 
 
     breakdown = [
-        f"{mention_html(uid, name)} — намок на {fmt_money(amt)}"
+        f"{name_with_tags(uid, name)} — намок на {fmt_money(amt)}"
         for (uid, name), amt in zip(recipients, per_user) if amt > 0
     ]
+    
     if extra_lines:
         breakdown.extend(extra_lines)
     
