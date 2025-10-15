@@ -6,6 +6,7 @@ import random
 import html
 from typing import List, Tuple
 from datetime import datetime
+import aiosqlite
 
 from aiogram import types
 from aiogram.types import FSInputFile

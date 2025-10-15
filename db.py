@@ -274,6 +274,7 @@ async def get_perks(user_id: int) -> set[str]:
             perks.add(code)
         else:
             perks.discard(code)
+    return perks
 
 async def get_perk_holders(perk_code: str) -> List[int]:
     target = _normalize_perk_code(perk_code)
