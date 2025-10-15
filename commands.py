@@ -972,6 +972,7 @@ async def handle_dozhd(message: types.Message):
     if total > bal:
         await message.reply(f"У Вас недостаточно нуаров. Баланс: {fmt_money(bal)}")
         return
+
     candidate_ids = [uid for uid in await get_known_users() if uid != giver_id]
     eligible = []
     for uid in candidate_ids:
@@ -988,51 +989,60 @@ async def handle_dozhd(message: types.Message):
     if not eligible:
         await message.reply("Некого намочить — я не вижу участников в этом чате.")
         return
-    random.shuffle(eligible)
-    recipients = eligible[:5]
+    # --- новая логика выбора получателей ---
+    # веса: базовый 100; для "везунчиков" 100 + p_lucky
+    p_lucky = await get_perk_lucky_chance()
+    weights = []
+    for uid, name in eligible:
+        perks_u = await get_perks(uid)
+        w = 100 + (p_lucky if "везунчик" in perks_u else 0)
+        weights.append(w)
+
+    # взвешенная выборка без замены на 5 человек
+    def weighted_sample_without_replacement(items, weights, k):
+        items = list(items)
+        weights = list(weights)
+        chosen = []
+        for _ in range(min(k, len(items))):
+            total_w = sum(weights)
+            r = random.uniform(0, total_w)
+            acc = 0.0
+            pick_idx = 0
+            for i, w in enumerate(weights):
+                acc += w
+                if r <= acc:
+                    pick_idx = i
+                    break
+            chosen.append(items[pick_idx])
+            items.pop(pick_idx)
+            weights.pop(pick_idx)
+        return chosen, items  # (выбранные, оставшиеся)
+
+    recipients, rest_pool = weighted_sample_without_replacement(eligible, weights, 5)
+
     n = len(recipients)
     base = total // n
     rest = total % n
     per_user = [base + (1 if i < rest else 0) for i in range(n)]
 
+    # списываем у дарителя и начисляем пятёрке
     await change_balance(giver_id, -total, "дождь", giver_id)
     for (uid, _name), amt in zip(recipients, per_user):
         if amt > 0:
             await change_balance(uid, amt, "дождь", giver_id)
 
-    # NEW: «Филантроп» — 15% шанс добавить шестого получателя с такой же долей (из сейфа)
-    giver_perks = await get_perks(giver_id)
-    p = await get_perk_philanthrope_chance()
-    base_share = per_user[0] if per_user else 0
-    added_sixth = False
-    extra_lines = []
 
-    if "филантроп" in giver_perks and base_share > 0 and chance(p):
-        # найдём кандидата, не из текущих 5
-        taken_ids = {uid for uid, _ in recipients}
-        extra_pool = [(uid, name) for uid, name in eligible if uid not in taken_ids]
-        if extra_pool:
-            sixth_uid, sixth_name = random.choice(extra_pool)
+    # --- «Филантроп»: шестой равновероятно из оставшихся ---
+    giver_perks = await get_perks(giver_id)
+    extra_lines = []
+    base_share = per_user[0] if per_user else 0
+
+    if "филантроп" in giver_perks and base_share > 0 and chance(await get_perk_philanthrope_chance()):
+        if rest_pool:
+            sixth_uid, sixth_name = random.choice(rest_pool)  # равномерно среди оставшихся
             await change_balance(sixth_uid, base_share, "дождь_филантроп", giver_id)
             extra_lines.append(f"{mention_html(sixth_uid, sixth_name)} — получил дополнительно {fmt_money(base_share)} от филантропа")
-            added_sixth = True
 
-    # NEW: «Везунчик» — 33% шанс стать шестым получателем (если ещё не добавили филантропа)
-    if not added_sixth:
-        # соберём всех с перком «везунчик», кто не в пятёрке
-        lucky_pool = []
-        taken_ids = {uid for uid, _ in recipients}
-        for uid, name in eligible:
-            if uid in taken_ids:
-                continue
-            user_perks = await get_perks(uid)
-            p = await get_perk_lucky_chance()
-            if "везунчик" in user_perks and chance(p):
-                lucky_pool.append((uid, name))
-        if lucky_pool and base_share > 0:
-            lucky_uid, lucky_name = random.choice(lucky_pool)
-            await change_balance(lucky_uid, base_share, "дождь_везунчик", giver_id)
-            extra_lines.append(f"{mention_html(lucky_uid, lucky_name)} — удача улыбнулась везунчику на {fmt_money(base_share)}")
 
     breakdown = [
         f"{mention_html(uid, name)} — намок на {fmt_money(amt)}"
