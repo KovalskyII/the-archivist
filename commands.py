@@ -1504,7 +1504,7 @@ async def handle_theft(message: types.Message):
     victim_perks = await get_perks(victim.id)
     if "щит" in victim_perks and chance(p):
         await record_theft(thief_id, 0, victim.id, success=False)
-        await message.reply("🛡️ Щит жертвы вспыхнул — пришлось ретироваться. Ждите 12 часов.")
+        await message.reply("🛡️ Щит жертвы вспыхнул — вы охуели от таких спецэфектов. Отсидитесь 12 часов.")
         return
 
     seconds = await get_seconds_since_last_theft(thief_id)
@@ -1519,7 +1519,7 @@ async def handle_theft(message: types.Message):
     victim_balance = await get_balance(victim.id)
     if victim_balance < income or income <= 0:
         await record_theft(thief_id, 0, victim.id, success=False)
-        await message.reply(f"🐕 Сторожевые собаки подняли лай — пришлось бежать. Придется снова ждать {COOLDOWN} часов.")
+        await message.reply(f"🐕 Сторожевые собаки подняли лай — пришлось бежать. Схоронитесь на 12 часов.")
         return
 
     await change_balance(victim.id, -income, "кража", thief_id)
