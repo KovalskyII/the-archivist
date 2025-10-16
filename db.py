@@ -1106,3 +1106,10 @@ async def get_seconds_since_last_bank_rob(user_id: int) -> int | None:
 async def record_bank_rob(user_id: int, outcome: str, amount: int):
     # outcome: success | fail | busted
     await insert_history(user_id, "bank_rob", amount, outcome)
+
+async def touch_user(user_id: int, username: str | None = None):
+    async with aiosqlite.connect(DB_PATH) as db:
+        await ensure_user(db, user_id)
+        if username is not None:
+            await db.execute("UPDATE users SET username=? WHERE user_id=?", (username, user_id))
+            await db.commit()

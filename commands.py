@@ -151,6 +151,9 @@ async def handle_message(message: types.Message):
     text_l = text.lower()
     author_id = message.from_user.id
 
+    from db import touch_user
+    await touch_user(author_id, message.from_user.username)
+
     if message.from_user.is_bot:
         return
 
@@ -712,7 +715,7 @@ async def handle_message(message: types.Message):
             p = int(m.group(1))
             await set_cell_stor_fee_pct(p)
             cur = await get_cell_stor_fee_pct()
-            await message.reply(f"🛠️ Комиссия хранения установлена: {cur}% / 4ч")
+            await message.reply(f"🛠️ Комиссия хранения установлена: {cur}% / 6ч")
             return
 
         # банк кд <дней>
@@ -2311,7 +2314,7 @@ async def handle_bank_summary_cmd(message: types.Message):
         "🏛 Банк\n"
         f"Сумма всех ячеек: {fmt_money(total)}\n"
         f"Комиссия пополнения: {dep}%\n"
-        f"Комиссия хранения: {stor}% / 4ч"
+        f"Комиссия хранения: {stor}% / 6ч"
     )
 
 async def handle_bank_rob_cmd(message: types.Message):
