@@ -422,7 +422,7 @@ async def set_cell_stor_fee_pct(v: int):
 
 # ===== ЯЧЕЙКИ (БАНК) НА HISTORY =====
 import math
-FOUR_HOURS = 4 * 60 * 60  # в секундах
+FOUR_HOURS = 6 * 60 * 60  # в секундах
 
 async def _now_ts(db=None) -> int:
     if db is not None:
@@ -497,7 +497,7 @@ async def cell_touch(user_id: int) -> tuple[int,int]:
 
     pct = await get_cell_stor_fee_pct()
     for _ in range(intervals):
-        fee = (bal * pct) // 100
+        fee = (bal * pct + 99) // 100
         if fee <= 0:
             break
         # записываем списание и уменьшаем локальный баланс
@@ -532,7 +532,7 @@ async def cell_deposit(user_id: int, gross_amount: int) -> tuple[int,int,int]:
     """
     await cell_touch(user_id)
     dep_pct = await get_cell_dep_fee_pct()
-    fee = (gross_amount * dep_pct) // 100
+    fee = (gross_amount * dep_pct + 99) // 100
     net = max(0, gross_amount - fee)
     # логируем net как приход в ячейку
     await insert_history(user_id, "cell_dep", net, f"gross={gross_amount};fee={fee}")
