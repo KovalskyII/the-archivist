@@ -366,6 +366,11 @@ async def handle_message(message: types.Message):
         await handle_cell_withdraw_all_cmd(message)
         return
 
+    m = re.match(r"^сжечь\s+(\d+)$", text_l)
+    if m:
+        await handle_burn_cmd(message, int(m.group(1)))
+        return
+
 
     # ======= ЩЕДРОСТЬ (только Куратор, но работает и в ЛС, и в чате) =======
     if text_l.startswith("щедрость"):
@@ -2041,6 +2046,7 @@ async def handle_commands_catalog(message: types.Message):
         "вывод все/всё / вывести все/всё - вывести весь баланс",
         "моя ячейка / ячейка — показать баланс своей ячейки",
         "банк — сводка по сумме всех ячеек и ставкам комиссий",
+        "сжечь <N> — уничтожить нуары из своего кармана",
 
     ]
     paid = [
@@ -2369,3 +2375,20 @@ async def handle_bank_rob_cmd(message: types.Message):
         )
     except Exception:
         pass
+
+async def handle_burn_cmd(message: types.Message, amount: int):
+    if amount <= 0:
+        await message.reply("Сумма должна быть положительной.")
+        return
+    user_id = message.from_user.id
+    bal = await get_balance(user_id)
+    if amount > bal:
+        await message.reply(f"Недостаточно нуаров для сжигания. На руках: {fmt_money(bal)}.")
+        return
+
+    # списываем с кармана
+    await change_balance(user_id, -amount, "burn_self", user_id)
+    # фиксируем сжигание (учтётся в экономике)
+    await record_burn(amount, f"user_burn:{user_id}")
+
+    await message.reply(f"🔥 Ты сжег {fmt_money(amount)}. Было тепло, но теперь они утеряны навсегда.")
