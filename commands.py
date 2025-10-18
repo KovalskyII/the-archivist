@@ -1470,8 +1470,25 @@ async def handle_revoke_perk_universal(message: types.Message, code: str):
     if code not in perks:
         await message.reply(f"У {mention_html(target.id, target.full_name)} нет перка «{title}».", parse_mode="HTML")
         return
+    # снимаем активный перк
     await revoke_perk(target.id, code)
-    await message.reply(f"Перк «{title}» уничтожен у {mention_html(target.id, target.full_name)}.", parse_mode="HTML")
+
+    # если есть ваучер — сразу активируем один (автоподмена)
+    credits = await get_perk_credits(target.id, code)
+    if credits > 0 and await perk_credit_use(target.id, code):
+        await grant_perk(target.id, code)
+        await message.reply(
+            f"Перк «{title}» уничтожен у {mention_html(target.id, target.full_name)}, "
+            f"но ваучер автоматически активирован (осталось ваучеров: {credits - 1}).",
+            parse_mode="HTML"
+        )
+        return
+
+    # если ваучеров нет — просто подтвердим уничтожение
+    await message.reply(
+        f"Перк «{title}» уничтожен у {mention_html(target.id, target.full_name)}.",
+        parse_mode="HTML"
+    )
 
 async def handle_perk_holders_list(message: types.Message, code_raw: str):
     code = code_raw.strip().lower()
