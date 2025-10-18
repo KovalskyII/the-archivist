@@ -1817,6 +1817,16 @@ async def handle_perk_sell(message: types.Message, code: str, price: int):
     has_perk = (code in perks)
     credits = await get_perk_credits(user_id, code)
 
+    # запрет на второй активный лот с тем же перком у того же продавца
+    existing = next((o for o in await list_active_offers()
+                     if o.get("type") == "perk"
+                     and o.get("seller_id") == user_id
+                     and (o.get("perk_code") or "").strip().lower() == code), None)
+    if existing:
+        await message.reply(f"У вас уже есть активный лот #{existing['offer_id']} с этим перком. Снимите его, чтобы выставить снова.")
+        return
+
+
     # Вариант 1: нет перка, но есть ваучер → продаём ваучер
     if not has_perk and credits > 0:
         ok = await perk_credit_use(user_id, code)  # минус 1 кредит
@@ -1857,6 +1867,7 @@ async def _apply_burn_and_return(price: int) -> int:
 
 async def handle_offer_buy(message: types.Message, offer_id: int):
     # найти лот
+    perk_note = ""
     offers = await list_active_offers()
     offer = None
     for o in offers:
@@ -1912,13 +1923,12 @@ async def handle_offer_buy(message: types.Message, offer_id: int):
     contract_id = f"C-{today}-{sale_id}"
 
     # Сформируем строку «Товар» и примечание по перку (если перковый лот)
+    # перед чеком
     product_line = f"Товар: «лот #{offer_id}» ({offer['link'] or 'ссылка не указана'})\n"
-    perk_note = ""
     if offer.get("type") == "perk":
         code = (offer.get("perk_code") or "").strip().lower()
         emoji, title = PERK_REGISTRY.get(code, ("", code))
         product_line = f"Товар: Перк «{title}» {emoji}\n"
-        # perk_note уже вычислялся выше (см. блок выдачи перка/ваучера); если нет — оставим пустым
 
     seller_mention = mention_html(offer["seller_id"], "Продавец")
 
