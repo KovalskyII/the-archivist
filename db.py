@@ -38,6 +38,11 @@ EXPECTED_USERS_COLS  = ["user_id", "username", "balance", "key"]
 EXPECTED_ROLES_COLS  = ["user_id", "role_name", "role_desc", "role_image"]
 EXPECTED_HIST_COLS   = ["id", "user_id", "action", "amount", "reason", "date"]
 
+CFG_BRAVO_WINDOW_SEC   = "bravo_window_sec"   # дефолт 600
+CFG_BRAVO_MAX_VIEWERS  = "bravo_max_viewers"  # дефолт 10
+CFG_PIN_Q_MULT         = "pin_q_mult"         # дефолт 9 (тихий = bonus * 9)
+
+
 # ------- базовая инициализация/проверка -------
 
 async def _table_columns(db, table: str):
@@ -321,6 +326,67 @@ async def get_perks_summary() -> List[Tuple[str, int]]:
     for code in sorted(counts.keys()):
         out.append((code, counts[code]))
     return out
+
+def _reason_get(reason: str | None, key: str) -> str | None:
+    if not reason:
+        return None
+    for part in reason.split(";"):
+        part = part.strip()
+        if part.startswith(key + "="):
+            return part.split("=", 1)[1]
+    return None
+
+async def perk_credit_add(user_id: int, code: str):
+    code = _normalize_perk_code(code)
+    await insert_history(user_id, "perk_credit_add", 1, f"code={code}")
+
+async def perk_credit_use(user_id: int, code: str) -> bool:
+    code = _normalize_perk_code(code)
+    # проверим, что кредит есть
+    if (await get_perk_credits(user_id, code)) <= 0:
+        return False
+    await insert_history(user_id, "perk_credit_use", 1, f"code={code}")
+    return True
+
+async def get_perk_credits(user_id: int, code: str) -> int:
+    code = _normalize_perk_code(code)
+    add = use = 0
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("""
+            SELECT action, COALESCE(amount,0), reason
+            FROM history
+            WHERE user_id=? AND action IN ('perk_credit_add','perk_credit_use')
+        """, (user_id,)) as cur:
+            rows = await cur.fetchall()
+    for action, amt, reason in rows:
+        if _reason_get(reason, "code") != code:
+            continue
+        if action == "perk_credit_add": add += int(amt or 0)
+        else:                            use += int(amt or 0)
+    return max(0, add - use)
+
+async def perk_escrow_open(user_id: int, code: str, offer_id: int):
+    code = _normalize_perk_code(code)
+    await insert_history(user_id, "perk_escrow_open", None, f"code={code};offer_id={offer_id}")
+
+async def perk_escrow_close(user_id: int, code: str, offer_id: int, typ: str):
+    # typ: 'sold' | 'cancel'
+    code = _normalize_perk_code(code)
+    await insert_history(user_id, "perk_escrow_close", None, f"code={code};offer_id={offer_id};type={typ}")
+
+async def get_perk_escrow_owner(offer_id: int) -> tuple[int | None, str | None]:
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("""
+            SELECT user_id, reason FROM history
+            WHERE action='perk_escrow_open' AND reason LIKE ?
+            ORDER BY id DESC LIMIT 1
+        """, (f"%offer_id={offer_id}%",)) as cur:
+            row = await cur.fetchone()
+    if not row: 
+        return (None, None)
+    uid, reason = row
+    return (int(uid), _reason_get(reason, "code"))
+
 
 # ------- ЗП/кража кулдауны -------
 
@@ -789,11 +855,25 @@ async def list_active_offers() -> List[Dict[str, Any]]:
     for cid, seller, price, reason, date in creates:
         if cid in cancels or cid in sold_ids:
             continue
-        link = ""
-        if reason and "link=" in reason:
-            link = reason.split("link=", 1)[1]
-        out.append({"offer_id": cid, "seller_id": seller, "price": int(price or 0), "link": link, "date": date})
+        link = _reason_get(reason, "link") or ""
+        perk_code = _reason_get(reason, "perk_code")
+        offer_type = "perk" if perk_code else "regular"
+
+        out.append({
+            "offer_id": cid,
+            "seller_id": seller,
+            "price": int(price or 0),
+            "link": link,
+            "perk_code": perk_code,
+            "type": offer_type,
+            "date": date
+        })
     return out
+
+async def create_perk_offer(seller_id: int, code: str, price: int) -> int:
+    code = _normalize_perk_code(code)
+    return await insert_history(seller_id, "offer_create", price, f"perk_code={code}")
+
 
 # ------- герой дня (через history) -------
 
@@ -1113,3 +1193,55 @@ async def touch_user(user_id: int, username: str | None = None):
         if username is not None:
             await db.execute("UPDATE users SET username=? WHERE user_id=?", (username, user_id))
             await db.commit()
+
+async def get_bravo_window_sec() -> int:
+    return await get_config_int(CFG_BRAVO_WINDOW_SEC, 600)
+
+async def get_bravo_max_viewers() -> int:
+    return await get_config_int(CFG_BRAVO_MAX_VIEWERS, 10)
+
+async def get_pin_q_mult() -> int:
+    return await get_config_int(CFG_PIN_Q_MULT, 9)
+
+async def set_pin_q_mult(v: int):
+    await set_config_int(CFG_PIN_Q_MULT, max(1, v))
+
+async def hero_save_claim_msg(chat_id: int, hero_id: int, msg_id: int, ts_unix: int):
+    await insert_history(hero_id, "hero_claim_msg", None, f"chat_id={chat_id};msg_id={msg_id};ts={ts_unix}")
+
+async def hero_get_last_claim_msg(chat_id: int) -> dict|None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("""
+            SELECT user_id, reason, date FROM history
+            WHERE action='hero_claim_msg' AND reason LIKE ?
+            ORDER BY id DESC LIMIT 1
+        """,(f"%chat_id={chat_id}%",)) as cur:
+            row = await cur.fetchone()
+    if not row: return None
+    uid, reason, date = row
+    return {
+        "hero_id": int(uid),
+        "msg_id": int(_reason_get(reason, "msg_id") or 0),
+        "ts": int(_reason_get(reason, "ts") or 0)
+    }
+
+async def bravo_count_for_msg(chat_id: int, msg_id: int) -> int:
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("""
+            SELECT COUNT(1) FROM history
+            WHERE action='bravo_claim' AND reason=?
+        """,(f"chat_id={chat_id};msg_id={msg_id}",)) as cur:
+            row = await cur.fetchone()
+            return int(row[0] or 0)
+
+async def bravo_already_claimed(user_id: int, chat_id: int, msg_id: int) -> bool:
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("""
+            SELECT 1 FROM history
+            WHERE user_id=? AND action='bravo_claim' AND reason=?
+            LIMIT 1
+        """,(user_id, f"chat_id={chat_id};msg_id={msg_id}")) as cur:
+            return (await cur.fetchone()) is not None
+
+async def record_bravo(user_id: int, chat_id: int, msg_id: int, reward: int):
+    await insert_history(user_id, "bravo_claim", reward, f"chat_id={chat_id};msg_id={msg_id}")

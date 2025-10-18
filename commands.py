@@ -30,7 +30,6 @@ from db import (
     get_perk_croupier_chance, set_perk_croupier_chance,
     get_perk_philanthrope_chance, set_perk_philanthrope_chance,
     get_perk_lucky_chance, set_perk_lucky_chance,
-        # банк / ячейки
     cell_get_balance, cell_deposit, cell_withdraw,
     bank_touch_all_and_total, bank_zero_all_and_sum,
     get_cell_dep_fee_pct, get_cell_stor_fee_pct,
@@ -38,6 +37,9 @@ from db import (
     get_bank_rob_cooldown_days, set_bank_rob_cooldown_days,
     get_cell_dep_fee_pct, set_cell_dep_fee_pct,
     get_cell_stor_fee_pct, set_cell_stor_fee_pct,
+    get_perk_credits, perk_credit_add, perk_credit_use,
+    create_perk_offer, get_perk_escrow_owner, perk_escrow_open, perk_escrow_close,
+
 
 
 
@@ -301,6 +303,14 @@ async def handle_message(message: types.Message):
         await handle_offer_cancel(message, int(m.group(1)))
         return
 
+    m = re.match(r"^продать\s+перк\s+(\S+)\s+(\d+)$", text_l)
+    if m:
+        code = m.group(1).strip().lower()
+        price = int(m.group(2))
+        await handle_perk_sell(message, code, price)
+        return
+
+
     # кража
     if text_l in ("украсть", "своровать") and message.reply_to_message:
         await handle_theft(message)
@@ -508,41 +518,6 @@ async def handle_message(message: types.Message):
             await handle_vault_reset(message)
             return
 
-        m = re.match(r"^жалование\s+база\s+(\d+)$", text_l)
-        if m:
-            v = int(m.group(1))
-            await set_stipend_base(v)
-            cur = await get_stipend_base()
-            await message.reply(f"🛠️ Готово. База жалования: {fmt_money(cur)}.")
-            return
-
-        # жалование надбавка <N>
-        m = re.match(r"^жалование\s+надбавка\s+(\d+)$", text_l)
-        if m:
-            v = int(m.group(1))
-            await set_stipend_bonus(v)
-            cur = await get_stipend_bonus()
-            await message.reply(f"🛠️ Готово. Надбавка к жалованию: {fmt_money(cur)}.")
-            return
-
-        # цена пост <N>
-        m = re.match(r"^цена\s+пост\s+(\d+)$", text_l)
-        if m:
-            v = int(m.group(1))
-            await set_price_pin(v)
-            cur = await get_price_pin()
-            await message.reply(f"🛠️ Готово. Цена «закрепить пост»: {fmt_money(cur)}.")
-            return
-
-        # цена громкий пост <N>
-        m = re.match(r"^цена\s+громкий\s+пост\s+(\d+)$", text_l)
-        if m:
-            v = int(m.group(1))
-            await set_price_pin_loud(v)
-            cur = await get_price_pin_loud()
-            await message.reply(f"🛠️ Готово. Цена «закрепить пост громко»: {fmt_money(cur)}.")
-            return
-
         m = re.match(r"^установить\s+код\s+(\S+)\s+(\d+)\s*(.*)$", text_l)
         if m and author_id == KURATOR_ID:
             if message.chat.type != "private":
@@ -639,15 +614,6 @@ async def handle_message(message: types.Message):
             await message.reply("🎰 Казино открыто." if turn_on else "🎰 Казино закрыто.")
             return
 
-        # кража <N>
-        m = re.match(r"^кража\s+(\d+)$", text_l)
-        if m:
-            v = int(m.group(1))
-            await set_income(v)
-            cur = await get_income()
-            await message.reply(f"🛠️ Готово. Сумма удачной кражи: {fmt_money(cur)}.")
-            return
-
         # лимит ставка <N>
         m = re.match(r"^лимит\s+ставка\s+(\d+)$", text_l)
         if m:
@@ -656,13 +622,6 @@ async def handle_message(message: types.Message):
             await message.reply("🛠️ Лимит ставки отключён." if v == 0 else f"🛠️ Лимит ставки: {fmt_int(v)}.")
             return
 
-        # лимит дождь <N>
-        m = re.match(r"^лимит\s+дождь\s+(\d+)$", text_l)
-        if m:
-            v = int(m.group(1))
-            await set_limit_rain(v)
-            await message.reply("🛠️ Лимит дождя отключён." if v == 0 else f"🛠️ Лимит дождя: {fmt_money(v)}.")
-            return
 
         if t in ("команды куратора", "мои команды", "/команды_куратора"):
             await handle_commands_curator(message)
@@ -726,6 +685,32 @@ async def handle_message(message: types.Message):
             cur = await get_bank_rob_cooldown_days()
             await message.reply(f"🛠️ КД перка «Грабитель» установлен: {cur} дн.")
             return
+
+        # новый хендлер базового индекса
+        m = re.match(r"^индекс\s+(\d+)$", text_l)
+        if m and author_id == KURATOR_ID:
+            base = int(m.group(1))
+            await set_stipend_base(base)
+            bonus_mult = 9  # можно вынести в конфиг при желании
+            bonus = base * bonus_mult
+            await set_stipend_bonus(bonus)
+            await set_income(bonus)
+            pin_q = await get_pin_q_mult()
+            await set_price_pin(bonus * pin_q)
+            await set_price_pin_loud((bonus * pin_q) * 2)
+            cur_b = await get_stipend_base()
+            cur_bonus = await get_stipend_bonus()
+            cur_income = await get_income()
+            await message.reply(
+                "🛠️ Индекс обновлён.\n"
+                f"• База жалования: {fmt_money(cur_b)}\n"
+                f"• Надбавка: {fmt_money(cur_bonus)}\n"
+                f"• Кража: {fmt_money(cur_income)}\n"
+                f"• Цена тихого пина: {fmt_money(await get_price_pin())}\n"
+                f"• Цена громкого пина: {fmt_money(await get_price_pin_loud())}"
+            )
+            return
+
 
 
 
@@ -1401,8 +1386,43 @@ async def handle_slots(message: types.Message):
 # ------------- перки: мои/чужие, даровать/уничтожить, ЗП, вор -------------
 
 async def handle_my_perks(message: types.Message):
-    perk_codes = await get_perks(message.from_user.id)
-    await message.reply(render_perks(perk_codes))
+    user_id = message.from_user.id
+    perk_codes = await get_perks(user_id)
+
+    # соберём ваучеры по всем известным кодам
+    vouchers_active_lines = []
+    vouchers_inactive_lines = []
+
+    # формируем аккуратный вывод
+    if not perk_codes:
+        base_lines = ["У Вас пока нет перков."]
+    else:
+        base_lines = ["Ваши перки:"]
+        items = []
+        for code in perk_codes:
+            emoji, title = PERK_REGISTRY.get(code, ("", code))
+            # кредиты
+            creds = await get_perk_credits(user_id, code)
+            suffix = f" (ваучеры: {creds})" if creds > 0 else ""
+            items.append((title.lower(), f"{emoji} {title}{suffix}"))
+        for _, line in sorted(items):
+            base_lines.append(line)
+
+    # ваучеры, для которых перка нет
+    for code in PERK_REGISTRY.keys():
+        if code in perk_codes:
+            continue
+        creds = await get_perk_credits(user_id, code)
+        if creds > 0:
+            emoji, title = PERK_REGISTRY.get(code, ("", code))
+            vouchers_inactive_lines.append(f"{emoji} {title} — {creds}")
+
+    if vouchers_inactive_lines:
+        base_lines.append("\nВаучеры (неактивные):")
+        base_lines.extend(vouchers_inactive_lines)
+
+    await message.reply("\n".join(base_lines))
+
 
 async def handle_perks_of(message: types.Message):
     target = message.reply_to_message.from_user
@@ -1681,13 +1701,37 @@ async def handle_market_show(message: types.Message):
             except Exception:
                 seller_repr = mention_html(seller_id, "Участник")
 
-            offer_blocks.append(
-                f"<b>Товар:</b> {link}\n"
-                f"<b>Номер лота:</b> {offer_id}\n"
-                f"<b>Цена:</b> {fmt_money(price)}\n"
-                f"<b>Продавец:</b> {seller_repr}\n"
-                f"<b>Команда покупки:</b> купить лот {offer_id}"
-            )
+            for o in offers:
+                seller_id = o["seller_id"]
+                price = o["price"]
+                offer_id = o["offer_id"]
+
+                try:
+                    member = await message.bot.get_chat_member(message.chat.id, seller_id)
+                    seller_repr = mention_html(seller_id, member.user.full_name or "Участник")
+                except Exception:
+                    seller_repr = mention_html(seller_id, "Участник")
+
+                if o.get("type") == "perk":
+                    code = (o.get("perk_code") or "").strip().lower()
+                    emoji, title = PERK_REGISTRY.get(code, ("", code))
+                    offer_blocks.append(
+                        f"<b>Товар:</b> Перк «{title}» {emoji}\n"
+                        f"<b>Номер лота:</b> {offer_id}\n"
+                        f"<b>Цена:</b> {fmt_money(price)}\n"
+                        f"<b>Продавец:</b> {seller_repr}\n"
+                        f"<b>Команда покупки:</b> купить лот {offer_id}"
+                    )
+                else:
+                    link = html.escape(o.get("link") or "(ссылка не указана)")
+                    offer_blocks.append(
+                        f"<b>Товар:</b> {link}\n"
+                        f"<b>Номер лота:</b> {offer_id}\n"
+                        f"<b>Цена:</b> {fmt_money(price)}\n"
+                        f"<b>Продавец:</b> {seller_repr}\n"
+                        f"<b>Команда покупки:</b> купить лот {offer_id}"
+                    )
+
 
 
         turnover_line = (
@@ -1745,8 +1789,66 @@ async def handle_offer_cancel(message: types.Message, offer_id: int):
     if message.from_user.id != owner_id and message.from_user.id != KURATOR_ID:
         await message.reply("Снять лот может только продавец или куратор.")
         return
+
+    # если это перковый лот — нужно закрыть эскроу и вернуть право владельцу
+    offers_all = await list_active_offers()
+    offer = next((o for o in offers_all if o["offer_id"] == offer_id), None)
+    if offer and offer.get("type") == "perk":
+        code = (offer.get("perk_code") or "").strip().lower()
+        # сперва закрываем эскроу
+        await perk_escrow_close(offer["seller_id"], code, offer_id, "cancel")
+
+        # если у продавца ТЕПЕРЬ уже есть этот перк (мог купить заново) — вернём ему ваучером,
+        # иначе — вернём активным перком
+        seller_perks = await get_perks(offer["seller_id"])
+        if code in seller_perks:
+            await perk_credit_add(offer["seller_id"], code)
+        else:
+            await grant_perk(offer["seller_id"], code)
+            
+
     await cancel_offer(offer_id, message.from_user.id)
     await message.reply("Лот снят.")
+
+async def handle_perk_sell(message: types.Message, code: str, price: int):
+    if code not in PERK_REGISTRY:
+        await message.reply("Такого перка нет.")
+        return
+    if price <= 0:
+        await message.reply("Цена должна быть положительной.")
+        return
+
+    user_id = message.from_user.id
+    perks = await get_perks(user_id)
+    has_perk = (code in perks)
+    credits = await get_perk_credits(user_id, code)
+
+    # Вариант 1: нет перка, но есть ваучер → продаём ваучер
+    if not has_perk and credits > 0:
+        ok = await perk_credit_use(user_id, code)  # минус 1 кредит
+        if not ok:
+            await message.reply("Нет доступного ваучера этого перка.")
+            return
+        offer_id = await create_perk_offer(user_id, code, price)
+        await perk_escrow_open(user_id, code, offer_id)
+        await message.reply(f"Лот (перк «{PERK_REGISTRY[code][1]}») выставлен. ID: {offer_id}.")
+        return
+
+    # Вариант 2: есть активный перк → отдаём его в эскроу
+    if has_perk:
+        # Снимаем перк для эскроу
+        await revoke_perk(user_id, code)
+        # Если есть ваучер — тут же автоподмена: расходуем ваучер и возвращаем перк
+        if credits > 0 and await perk_credit_use(user_id, code):
+            await grant_perk(user_id, code)
+
+        offer_id = await create_perk_offer(user_id, code, price)
+        await perk_escrow_open(user_id, code, offer_id)
+        await message.reply(f"Лот (перк «{PERK_REGISTRY[code][1]}») выставлен. ID: {offer_id}.")
+        return
+
+    await message.reply("У вас нет этого перка и ваучеров тоже нет.")
+
 
 async def _apply_burn_and_return(price: int) -> int:
     """Возвращает величину burn по текущему bps (округление вниз)."""
@@ -1786,6 +1888,23 @@ async def handle_offer_buy(message: types.Message, offer_id: int):
 
     # записать продажу
     sale_id = await insert_history(buyer_id, "offer_sold", price, f"offer_id={offer_id};seller={offer['seller_id']}")
+
+    # если перковый лот — перевыдать перк/кредит
+    if offer.get("type") == "perk":
+        code = (offer.get("perk_code") or "").strip().lower()
+        if code in PERK_REGISTRY:
+            buyer_perks = await get_perks(buyer_id)
+            if code in buyer_perks:
+                # уже есть → выдаём ваучер
+                await perk_credit_add(buyer_id, code)
+            else:
+                # нет → выдаём активный
+                await grant_perk(buyer_id, code)
+
+            # закрываем эскроу
+            seller_id = offer["seller_id"]
+            await perk_escrow_close(seller_id, code, offer_id, "sold")
+
 
     # контракт
     today = datetime.utcnow().strftime("%Y%m%d")
@@ -2027,23 +2146,25 @@ async def handle_commands_catalog(message: types.Message):
     members = [
         "мой карман - просмотр своего баланса",
         "моя роль - просмотр своей роли",
-        "роль (reply) - просмотр роли другого участника Клуба",
-        "рейтинг клуба",
+        "роль(reply) - просмотр роли другого участника Клуба",
+        "рейтинг клуба - список богатейших членов Клуба",
         "члены клуба",
         "хранители ключа / владельцы ключа",
-        "передать <N> (reply) — перевод участнику",
+        "передать <N>(reply) — перевод участнику",
         "дождь <N> — раздать до 5 случайным",
         "ставлю <N> на 🎲/кубик | 🎯/дартс | 🎳/боулинг | 🎰/автоматы — ставка в игру",
         "рынок — витрина товаров и лотов",
         "купить эмеральд / купить перк <код> / купить лот <offer_id>",
         "выставить <ссылка> <цена> / снять лот <offer_id>",
         "мои перки - просмотр своих перков",
-        "перки (reply) - просмотр перков другого участника Клуба",
+        "перки(reply) - просмотр перков другого участника Клуба",
+        "продать перк <код> <цена> - выставление перка на продажу",
         "получить жалование — базовая выплата раз в 12 часов",
-        "украсть / своровать (reply) — кража по перку «кража», раз в 12 часов",
+        "украсть/своровать(reply) — кража по перку «кража», раз в 12 часов",
         "сейф — сводка экономики клуба",
         "концерт - раз в 12 часов выбирает Героя Дня",
         "выступить - команда Героя Дня, разовый гонорар",
+        "браво(reply) - похвалить выступление",
         "депозит <N> — пополнить свою ячейку",
         "вывод <N> — вывести из ячейки в карман",
         "вывод все/всё / вывести все/всё - вывести весь баланс",
@@ -2075,20 +2196,19 @@ async def handle_commands_curator(message: types.Message):
             "включить сейф <CAP> / перезапустить сейф <CAP> подтверждаю",
             "сейф — сводка экономики",
             "сжигание <bps> — 100 bps = 1%",
-            "кража <N> — сумма удачной кражи",
             "банк комиссия депозит <P> - процент комиссии за вклад в ячейку",
             "банк комиссия хранение <P> - процент комиссии за хранение в ячейке",
+            "индекс <N> - установить базовый индекс экономики",
 
         ]),
         ("🎰 Казино", [
             "казино открыть|закрыть",
             "множитель кубик|дартс|боулинг|автоматы <X>",
-            "лимит ставка <N> / лимит дождь <N>",
+            "лимит ставка <N>",
         ]),
         ("💎 Рынок и цены", [
             "цена эмеральд <N>",
             "цена перк <код> <N>",
-            "цена пост <N> / цена громкий пост <N>",
         ]),
         ("🎖 Перки", [
             "у кого перк <код>|держатели перка / перки реестр",
@@ -2106,8 +2226,7 @@ async def handle_commands_curator(message: types.Message):
         ("🧹 Сбросы/служебные", [
             "обнулить баланс (reply) / обнулить балансы / обнулить клуб",
         ]),
-        ("🎁 Жалование и щедрость", [
-            "жалование база <N> / жалование надбавка <N>",
+        ("🎁 Щедрость", [
             "щедрость множитель <p>% / щедрость награда <N>",
             "щедрость статус / щедрость очки / щедрость обнулить (reply)",
             "щедрость обнулить все подтверждаю",
@@ -2312,7 +2431,7 @@ async def handle_bank_summary_cmd(message: types.Message):
     stor = await get_cell_stor_fee_pct()
     await message.reply(
         "🏛 Банк\n"
-        f"Сумма всех ячеек: {fmt_money(total)}\n"
+        f"Общий баланс ячеек: {fmt_money(total)}\n"
         f"Комиссия пополнения: {dep}%\n"
         f"Комиссия хранения: {stor}% / 6ч"
     )
