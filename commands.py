@@ -1813,24 +1813,42 @@ async def handle_perk_sell(message: types.Message, code: str, price: int):
         return
 
     user_id = message.from_user.id
+    code = code.strip().lower()
+
+    # текущее состояние пользователя
     perks = await get_perks(user_id)
     has_perk = (code in perks)
     credits = await get_perk_credits(user_id, code)
 
-    # запрет на второй активный лот с тем же перком у того же продавца
-    existing = next((o for o in await list_active_offers()
-                     if o.get("type") == "perk"
-                     and o.get("seller_id") == user_id
-                     and (o.get("perk_code") or "").strip().lower() == code), None)
-    if existing:
-        await message.reply(f"У вас уже есть активный лот #{existing['offer_id']} с этим перком. Снимите его, чтобы выставить снова.")
+    # --- Сколько копий у юзера всего и сколько уже выставлено ---
+    # всего доступно к продаже = актив(0/1) + ваучеры
+    total_owned = (1 if has_perk else 0) + credits
+
+    # уже активных лотов на рынке по этому коду от этого продавца
+    active_offers = [
+        o for o in await list_active_offers()
+        if o.get("type") == "perk"
+        and o.get("seller_id") == user_id
+        and (o.get("perk_code") or "").strip().lower() == code
+    ]
+    already_listed = len(active_offers)
+
+    # если уже выставленное количество >= количеству копий — больше выставлять нельзя
+    if already_listed >= total_owned:
+        if total_owned == 0:
+            await message.reply("У вас нет этого перка и ваучеров тоже нет.")
+        else:
+            await message.reply(
+                f"У вас уже выставлено {already_listed} лот(а), что равно количеству доступных копий этого перка."
+            )
         return
 
-
-    # Вариант 1: нет перка, но есть ваучер → продаём ваучер
-    if not has_perk and credits > 0:
+    # --- Приоритет ИСТОЧНИКА: сначала ваучер, потом актив ---
+    # 1) Если есть хоть один ваучер, продаём ваучер (активный перк не трогаем)
+    if credits > 0:
         ok = await perk_credit_use(user_id, code)  # минус 1 кредит
         if not ok:
+            # теоретически не должно случиться (мы только что считали), но подстрахуемся
             await message.reply("Нет доступного ваучера этого перка.")
             return
         offer_id = await create_perk_offer(user_id, code, price)
@@ -1838,17 +1856,17 @@ async def handle_perk_sell(message: types.Message, code: str, price: int):
         await message.reply(f"Лот (перк «{PERK_REGISTRY[code][1]}») выставлен. ID: {offer_id}.")
         return
 
-    # Вариант 2: есть активный перк → отдаём его в эскроу
+    # 2) Ваучеров нет, но есть актив — отправляем АКТИВ в эскроу
     if has_perk:
-        # Снимаем перк для эскроу
+        # снимаем актив и отдаём его в эскроу
         await revoke_perk(user_id, code)
-        # Если есть ваучер — тут же автоподмена: расходуем ваучер и возвращаем перк
-        if credits > 0 and await perk_credit_use(user_id, code):
-            await grant_perk(user_id, code)
 
-        # Страховка: убедимся, что перк реально снят
+        # ВАЖНО: не делаем авто-подмену актив↔ваучер.
+        # Если ваучеров нет, актив реально уходит в эскроу.
+
+        # страховка: убедимся, что перк снят
         after = await get_perks(user_id)
-        if code in after and credits == 0:
+        if code in after:
             await message.reply("Не удалось передать перк в эскроу. Попробуйте ещё раз или сообщите куратору.")
             return
 
@@ -1857,7 +1875,9 @@ async def handle_perk_sell(message: types.Message, code: str, price: int):
         await message.reply(f"Лот (перк «{PERK_REGISTRY[code][1]}») выставлен. ID: {offer_id}.")
         return
 
+    # сюда попадём, только если нет ни активного перка, ни ваучеров
     await message.reply("У вас нет этого перка и ваучеров тоже нет.")
+
 
 
 async def _apply_burn_and_return(price: int) -> int:
