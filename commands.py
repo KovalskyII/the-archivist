@@ -1837,29 +1837,6 @@ async def handle_perk_sell(message: types.Message, code: str, price: int):
     has_perk = (code in perks)
     credits = await get_perk_credits(user_id, code)
 
-    # --- Сколько копий у юзера всего и сколько уже выставлено ---
-    # всего доступно к продаже = актив(0/1) + ваучеры
-    total_owned = (1 if has_perk else 0) + credits
-
-    # уже активных лотов на рынке по этому коду от этого продавца
-    active_offers = [
-        o for o in await list_active_offers()
-        if o.get("type") == "perk"
-        and o.get("seller_id") == user_id
-        and (o.get("perk_code") or "").strip().lower() == code
-    ]
-    already_listed = len(active_offers)
-
-    # если уже выставленное количество >= количеству копий — больше выставлять нельзя
-    if already_listed >= total_owned:
-        if total_owned == 0:
-            await message.reply("У вас нет этого перка и ваучеров тоже нет.")
-        else:
-            await message.reply(
-                f"У вас уже выставлено {already_listed} лот(а), что равно количеству доступных копий этого перка."
-            )
-        return
-
     # --- Приоритет ИСТОЧНИКА: сначала ваучер, потом актив ---
     # 1) Если есть хоть один ваучер, продаём ваучер (активный перк не трогаем)
     if credits > 0:
