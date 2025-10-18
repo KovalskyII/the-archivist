@@ -692,7 +692,7 @@ async def handle_message(message: types.Message):
         if m and author_id == KURATOR_ID:
             base = int(m.group(1))
             await set_stipend_base(base)
-            bonus_mult = 5  # можно вынести в конфиг при желании
+            bonus_mult = 4  # можно вынести в конфиг при желании
             bonus = base * bonus_mult
             await set_stipend_bonus(bonus)
             await set_income(bonus)
@@ -1910,19 +1910,31 @@ async def handle_offer_buy(message: types.Message, offer_id: int):
     # контракт
     today = datetime.utcnow().strftime("%Y%m%d")
     contract_id = f"C-{today}-{sale_id}"
+
+    # Сформируем строку «Товар» и примечание по перку (если перковый лот)
+    product_line = f"Товар: «лот #{offer_id}» ({offer['link'] or 'ссылка не указана'})\n"
+    perk_note = ""
+    if offer.get("type") == "perk":
+        code = (offer.get("perk_code") or "").strip().lower()
+        emoji, title = PERK_REGISTRY.get(code, ("", code))
+        product_line = f"Товар: Перк «{title}» {emoji}\n"
+        # perk_note уже вычислялся выше (см. блок выдачи перка/ваучера); если нет — оставим пустым
+
     seller_mention = mention_html(offer["seller_id"], "Продавец")
+
     await message.reply(
         f"🧾 Контракт {contract_id}\n"
         f"Покупатель: {mention_html(buyer_id, message.from_user.full_name)}\n"
-        f"Товар: «лот #{offer_id}» ({offer['link'] or 'ссылка не указана'})\n"
+        f"{product_line}"
         f"Цена: {fmt_money(price)}\n"
         f"Комиссия (сжигание/налог): {fmt_money(burn)}\n"
         f"Перевод продавцу: {fmt_money(to_seller)}\n"
+        f"{(perk_note + chr(10)) if perk_note else ''}"
         f"Гарант: @kovalskyii\n"
         f"Продавец: {seller_mention}",
-        f"{perk_note}\n",
         parse_mode="HTML"
     )
+
 
 async def handle_buy_emerald(message: types.Message):
     price = await get_price_emerald()
