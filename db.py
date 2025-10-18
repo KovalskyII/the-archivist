@@ -257,9 +257,11 @@ def _normalize_perk_code(code: str) -> str:
 
 
 async def grant_perk(user_id: int, perk_code: str):
+    perk_code = _normalize_perk_code(perk_code)
     return await insert_history(user_id, "perk_grant", None, perk_code)
 
 async def revoke_perk(user_id: int, perk_code: str):
+    perk_code = _normalize_perk_code(perk_code)
     return await insert_history(user_id, "perk_revoke", None, perk_code)
 
 async def get_perks(user_id: int) -> set[str]:

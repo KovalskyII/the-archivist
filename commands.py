@@ -39,6 +39,7 @@ from db import (
     get_cell_stor_fee_pct, set_cell_stor_fee_pct,
     get_perk_credits, perk_credit_add, perk_credit_use,
     create_perk_offer, get_perk_escrow_owner, perk_escrow_open, perk_escrow_close,
+    get_pin_q_mult,
 
 
 
@@ -691,7 +692,7 @@ async def handle_message(message: types.Message):
         if m and author_id == KURATOR_ID:
             base = int(m.group(1))
             await set_stipend_base(base)
-            bonus_mult = 9  # можно вынести в конфиг при желании
+            bonus_mult = 10  # можно вынести в конфиг при желании
             bonus = base * bonus_mult
             await set_stipend_bonus(bonus)
             await set_income(bonus)
@@ -1835,6 +1836,12 @@ async def handle_perk_sell(message: types.Message, code: str, price: int):
         if credits > 0 and await perk_credit_use(user_id, code):
             await grant_perk(user_id, code)
 
+        # Страховка: убедимся, что перк реально снят
+        after = await get_perks(user_id)
+        if code in after and credits == 0:
+            await message.reply("Не удалось передать перк в эскроу. Попробуйте ещё раз или сообщите куратору.")
+            return
+
         offer_id = await create_perk_offer(user_id, code, price)
         await perk_escrow_open(user_id, code, offer_id)
         await message.reply(f"Лот (перк «{PERK_REGISTRY[code][1]}») выставлен. ID: {offer_id}.")
@@ -1887,13 +1894,14 @@ async def handle_offer_buy(message: types.Message, offer_id: int):
         code = (offer.get("perk_code") or "").strip().lower()
         if code in PERK_REGISTRY:
             buyer_perks = await get_perks(buyer_id)
+            granted = False
             if code in buyer_perks:
-                # уже есть → выдаём ваучер
                 await perk_credit_add(buyer_id, code)
+                perk_note = "Выдан ваучер (у вас уже есть этот перк)."
             else:
-                # нет → выдаём активный
                 await grant_perk(buyer_id, code)
-
+                granted = True
+                perk_note = "Выдан активный перк."
             # закрываем эскроу
             seller_id = offer["seller_id"]
             await perk_escrow_close(seller_id, code, offer_id, "sold")
@@ -1912,6 +1920,7 @@ async def handle_offer_buy(message: types.Message, offer_id: int):
         f"Перевод продавцу: {fmt_money(to_seller)}\n"
         f"Гарант: @kovalskyii\n"
         f"Продавец: {seller_mention}",
+        f"{perk_note}\n",
         parse_mode="HTML"
     )
 
