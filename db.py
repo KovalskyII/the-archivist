@@ -472,7 +472,7 @@ CFG_PRICE_EMERALD = "price_emerald"   # цена эмеральда
 # цены перков: key = price_perk:<code>
 # ==== BANK (ячейки): комиссии ====
 CFG_CELL_DEP_FEE_PCT   = "cell_dep_fee_pct"    # комиссия за депозит, % от внесённой суммы
-CFG_CELL_STOR_FEE_PCT  = "cell_stor_fee_pct"   # комиссия хранения, % за каждые 4 часа
+CFG_CELL_STOR_FEE_PCT  = "cell_stor_fee_pct"   # комиссия хранения, % за каждые 6 часа
 
 async def get_cell_dep_fee_pct() -> int:
     return await get_config_int(CFG_CELL_DEP_FEE_PCT, 3)  # дефолт 3%
@@ -481,7 +481,7 @@ async def set_cell_dep_fee_pct(v: int):
     await set_config_int(CFG_CELL_DEP_FEE_PCT, max(0, v))
 
 async def get_cell_stor_fee_pct() -> int:
-    return await get_config_int(CFG_CELL_STOR_FEE_PCT, 1)  # дефолт 1% / 4ч
+    return await get_config_int(CFG_CELL_STOR_FEE_PCT, 1)  # дефолт 1% / 6ч
 
 async def set_cell_stor_fee_pct(v: int):
     await set_config_int(CFG_CELL_STOR_FEE_PCT, max(0, v))
@@ -722,8 +722,10 @@ async def get_price_perk(code: str) -> Optional[int]:
 
 
 async def set_price_perk(code: str, v: int):
+    code = _normalize_perk_code(code)
     key = f"price_perk:{code}"
     await set_config_int(key, max(1, v))
+
 
 # ------- сейф/экономика -------
 

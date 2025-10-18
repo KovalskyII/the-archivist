@@ -5,7 +5,7 @@ import asyncio
 import random
 import html
 from typing import List, Tuple
-from datetime import datetime
+from datetime import datetime, timezone
 import aiosqlite
 
 from aiogram import types
@@ -32,7 +32,7 @@ from db import (
     get_perk_lucky_chance, set_perk_lucky_chance,
     cell_get_balance, cell_deposit, cell_withdraw,
     bank_touch_all_and_total, bank_zero_all_and_sum,
-    get_cell_dep_fee_pct, get_cell_stor_fee_pct,
+    get_cell_stor_fee_pct,
     get_seconds_since_last_bank_rob, record_bank_rob,
     get_bank_rob_cooldown_days, set_bank_rob_cooldown_days,
     get_cell_dep_fee_pct, set_cell_dep_fee_pct,
@@ -1272,10 +1272,11 @@ async def handle_darts(message: types.Message):
             )
             # NEW: «Крупье» — 15% шанс вернуть 50% ставки при проигрыше
             user_perks = await get_perks(user_id)
-            if "крупье" in user_perks and chance(15):
+            p_croup = await get_perk_croupier_chance()
+            if "крупье" in user_perks and chance(p_croup):
                 refund = amount // 2
                 if refund > 0:
-                    await change_balance(user_id, refund, "крупье_рефанд(кубик)", user_id)
+                    await change_balance(user_id, refund, "крупье_рефанд(дартс)", user_id)
                     await message.reply(f"🎩 Крупье пожалел вас и вернул {fmt_money(refund)}.")
 
 
@@ -1323,10 +1324,11 @@ async def handle_bowling(message: types.Message):
             )
             # NEW: «Крупье» — 15% шанс вернуть 50% ставки при проигрыше
             user_perks = await get_perks(user_id)
-            if "крупье" in user_perks and chance(15):
+            p_croup = await get_perk_croupier_chance()
+            if "крупье" in user_perks and chance(p_croup):
                 refund = amount // 2
                 if refund > 0:
-                    await change_balance(user_id, refund, "крупье_рефанд(кубик)", user_id)
+                    await change_balance(user_id, refund, "крупье_рефанд(боулинг)", user_id)
                     await message.reply(f"🎩 Крупье пожалел вас и вернул {fmt_money(refund)}.")
 
 
@@ -1375,10 +1377,11 @@ async def handle_slots(message: types.Message):
             )
             # NEW: «Крупье» — 15% шанс вернуть 50% ставки при проигрыше
             user_perks = await get_perks(user_id)
-            if "крупье" in user_perks and chance(15):
+            p_croup = await get_perk_croupier_chance()
+            if "крупье" in user_perks and chance(p_croup):
                 refund = amount // 2
                 if refund > 0:
-                    await change_balance(user_id, refund, "крупье_рефанд(кубик)", user_id)
+                    await change_balance(user_id, refund, "крупье_рефанд(автоматы)", user_id)
                     await message.reply(f"🎩 Крупье пожалел вас и вернул {fmt_money(refund)}.")
 
 
@@ -1695,42 +1698,32 @@ async def handle_market_show(message: types.Message):
             offer_id = o["offer_id"]
 
             # юзерка продавца (если нет username — выводим кликабельное имя)
+
             try:
                 member = await message.bot.get_chat_member(message.chat.id, seller_id)
                 seller_repr = mention_html(seller_id, member.user.full_name or "Участник")
             except Exception:
                 seller_repr = mention_html(seller_id, "Участник")
 
-            for o in offers:
-                seller_id = o["seller_id"]
-                price = o["price"]
-                offer_id = o["offer_id"]
-
-                try:
-                    member = await message.bot.get_chat_member(message.chat.id, seller_id)
-                    seller_repr = mention_html(seller_id, member.user.full_name or "Участник")
-                except Exception:
-                    seller_repr = mention_html(seller_id, "Участник")
-
-                if o.get("type") == "perk":
-                    code = (o.get("perk_code") or "").strip().lower()
-                    emoji, title = PERK_REGISTRY.get(code, ("", code))
-                    offer_blocks.append(
-                        f"<b>Товар:</b> Перк «{title}» {emoji}\n"
-                        f"<b>Номер лота:</b> {offer_id}\n"
-                        f"<b>Цена:</b> {fmt_money(price)}\n"
-                        f"<b>Продавец:</b> {seller_repr}\n"
-                        f"<b>Команда покупки:</b> купить лот {offer_id}"
-                    )
-                else:
-                    link = html.escape(o.get("link") or "(ссылка не указана)")
-                    offer_blocks.append(
-                        f"<b>Товар:</b> {link}\n"
-                        f"<b>Номер лота:</b> {offer_id}\n"
-                        f"<b>Цена:</b> {fmt_money(price)}\n"
-                        f"<b>Продавец:</b> {seller_repr}\n"
-                        f"<b>Команда покупки:</b> купить лот {offer_id}"
-                    )
+            if o.get("type") == "perk":
+                code = (o.get("perk_code") or "").strip().lower()
+                emoji, title = PERK_REGISTRY.get(code, ("", code))
+                offer_blocks.append(
+                    f"<b>Товар:</b> Перк «{title}» {emoji}\n"
+                    f"<b>Номер лота:</b> {offer_id}\n"
+                    f"<b>Цена:</b> {fmt_money(price)}\n"
+                    f"<b>Продавец:</b> {seller_repr}\n"
+                    f"<b>Команда покупки:</b> купить лот {offer_id}"
+                )
+            else:
+                link = html.escape(o.get("link") or "(ссылка не указана)")
+                offer_blocks.append(
+                    f"<b>Товар:</b> {link}\n"
+                    f"<b>Номер лота:</b> {offer_id}\n"
+                    f"<b>Цена:</b> {fmt_money(price)}\n"
+                    f"<b>Продавец:</b> {seller_repr}\n"
+                    f"<b>Команда покупки:</b> купить лот {offer_id}"
+                )
 
 
 
@@ -1805,7 +1798,7 @@ async def handle_offer_cancel(message: types.Message, offer_id: int):
             await perk_credit_add(offer["seller_id"], code)
         else:
             await grant_perk(offer["seller_id"], code)
-            
+
 
     await cancel_offer(offer_id, message.from_user.id)
     await message.reply("Лот снят.")
@@ -2332,10 +2325,57 @@ async def handle_hero_concert(message: types.Message):
     await hero_record_claim(chat_id, user_id, reward)
     await change_balance(user_id, reward, "выступить", user_id)
 
-    await message.reply(
+    sent = await message.reply(
         "🎤 Это было грандиозно! Концерт почти затмил Битлз.\n"
         f"Зрители в переходе ликовали и накидали вам {fmt_money(reward)} в шапку.",
     )
+    ts_unix = int(datetime.now(timezone.utc).timestamp())
+    await hero_save_claim_msg(message.chat.id, user_id, sent.message_id, ts_unix)
+
+async def handle_bravo(message: types.Message):
+    chat_id = message.chat.id
+    hero_msg = await hero_get_last_claim_msg(chat_id)
+    if not hero_msg:
+        await message.reply("Сегодня никто не выступал.")
+        return
+
+    msg_id = hero_msg["msg_id"]
+    ts    = hero_msg["ts"]
+    from time import time
+    window = await get_bravo_window_sec()
+    if int(time()) - int(ts) > window:
+        await message.reply("Уже всё разошлись, кому вы кричите, ненормальный?")
+        return
+
+    # только реплаем на пост выступления
+    if not message.reply_to_message or message.reply_to_message.message_id != msg_id:
+        await message.reply("Нужно ответить на сообщение о выступлении.")
+        return
+
+    # самопохвала
+    if message.reply_to_message.from_user and message.reply_to_message.from_user.id == message.from_user.id:
+        await message.reply("Сам себя не похвалишь — никто не похвалит.")
+        return
+
+    # лимит мест
+    claimed = await bravo_count_for_msg(chat_id, msg_id)
+    max_v = await get_bravo_max_viewers()
+    if claimed >= max_v:
+        # после 10-го: рубим остальным
+        await message.reply("Ну всё-всё, иди работай.")
+        return
+
+    # один раз на человека
+    if await bravo_already_claimed(message.from_user.id, chat_id, msg_id):
+        await message.reply("Не сотрите ладони в кровь, милейший.")
+        return
+
+    # награда = жалованию (база)
+    reward = await get_stipend_base()
+    await record_bravo(message.from_user.id, chat_id, msg_id, reward)
+    await change_balance(message.from_user.id, reward, "браво", message.from_user.id)
+    await message.reply(f"Вам тоже понравилось? Было великолепно! Держите {fmt_money(reward)} за поддержку юного таланта")
+
 
 async def _pin_paid(message: types.Message, loud: bool):
     if not message.reply_to_message:
