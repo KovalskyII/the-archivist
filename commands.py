@@ -696,6 +696,7 @@ async def handle_message(message: types.Message):
             bonus = base * bonus_mult
             await set_stipend_bonus(bonus)
             await set_income(bonus)
+            await set_generosity_threshold(bonus)
             pin_q = await get_pin_q_mult()
             await set_price_pin(bonus)
             await set_price_pin_loud(bonus * 2)
@@ -707,6 +708,7 @@ async def handle_message(message: types.Message):
                 f"• База жалования: {fmt_money(cur_b)}\n"
                 f"• Надбавка: {fmt_money(cur_bonus)}\n"
                 f"• Кража: {fmt_money(cur_income)}\n"
+                f"• Порог щедрости: {fmt_money(await get_generosity_threshold())}\n"
                 f"• Цена тихого пина: {fmt_money(await get_price_pin())}\n"
                 f"• Цена громкого пина: {fmt_money(await get_price_pin_loud())}"
             )
@@ -2284,6 +2286,28 @@ async def handle_commands_curator(message: types.Message):
 
 # --------- ГЕРОЙ ДНЯ ---------
 
+async def _concert_bounds_from_index() -> tuple[int, int]:
+    """
+    Границы гонорара концерта, привязанные к индексу:
+    min = базовое жалование, max = надбавка (она же размер кражи/дохода).
+    Если вдруг что-то не задано — возвращаем дефолтные константы.
+    """
+    try:
+        base = await get_stipend_base()
+        bonus = await get_stipend_bonus()  # у нас равна доходу/кражe
+        min_v = int(base) if base is not None else HERO_CONCERT_MIN
+        max_v = int(bonus) if bonus is not None else HERO_CONCERT_MAX
+        # страховка: min не больше max
+        if min_v > max_v:
+            min_v, max_v = max_v, min_v
+        # не допускаем нулевые/отрицательные границы
+        min_v = max(1, min_v)
+        max_v = max(min_v, max_v)
+        return (min_v, max_v)
+    except Exception:
+        return (HERO_CONCERT_MIN, HERO_CONCERT_MAX)
+
+
 async def handle_hero_of_day(message: types.Message):
     chat_id = message.chat.id
 
@@ -2366,7 +2390,8 @@ async def handle_hero_concert(message: types.Message):
         await message.reply("Ваш гонорар уже получен. На следующем концерте выступит кто-то еще.")
         return
 
-    reward = random.randint(HERO_CONCERT_MIN, HERO_CONCERT_MAX)
+    min_v, max_v = await _concert_bounds_from_index()
+    reward = random.randint(min_v, max_v)
     await hero_record_claim(chat_id, user_id, reward)
     await change_balance(user_id, reward, "выступить", user_id)
 
