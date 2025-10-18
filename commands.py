@@ -692,7 +692,7 @@ async def handle_message(message: types.Message):
         if m and author_id == KURATOR_ID:
             base = int(m.group(1))
             await set_stipend_base(base)
-            bonus_mult = 8  # можно вынести в конфиг при желании
+            bonus_mult = 5  # можно вынести в конфиг при желании
             bonus = base * bonus_mult
             await set_stipend_bonus(bonus)
             await set_income(bonus)
