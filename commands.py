@@ -2371,7 +2371,7 @@ async def handle_hero_of_day(message: types.Message):
         return
 
     hero_id = random.choice(candidates)
-    await hero_set_for_today(chat_id, hero_id, hours=12)
+    await hero_set_for_today(chat_id, hero_id, hours=4)
 
     # тексты анонса (без пингов)
     try:
@@ -2401,7 +2401,7 @@ async def handle_hero_concert(message: types.Message):
         await message.reply("Вы не являетесь сегодняшним исполнителем.")
         return
 
-    if await hero_has_claimed_today(chat_id, user_id, hours=0):
+    if await hero_has_claimed_today(chat_id, user_id, hours=4):
         await message.reply("Ваш гонорар уже получен. На следующем концерте выступит кто-то еще.")
         return
 
@@ -2447,7 +2447,7 @@ async def handle_bravo(message: types.Message):
         return
     # привязка к конкретному посту концерта
     if not message.reply_to_message or message.reply_to_message.message_id != target_msg_id:
-        await message.reply("Нужно ответить на сообщение о выступлении.")
+        await message.reply("Вы не туда кричите, концерт не там.")
         return
 
     # 3) Защита от самопохвалы и дублей
@@ -2467,8 +2467,8 @@ async def handle_bravo(message: types.Message):
     # 5) Ответ
     new_count = current_count + 1
     await message.reply(
-        f"👏 Вам тоже понравилось? Вы уже {new_count} кто оценил этот талант."
-        f"Держите {reward}.",
+        f"👏 Вам тоже понравилось? Вы уже {new_count} кто оценил этот талант.\n"
+        f"Держите fmt_int{(reward)}.",
         parse_mode="HTML"
     )
 

@@ -1202,7 +1202,7 @@ async def get_bravo_window_sec() -> int:
     return await get_config_int(CFG_BRAVO_WINDOW_SEC, 600)
 
 async def get_bravo_max_viewers() -> int:
-    return await get_config_int(CFG_BRAVO_MAX_VIEWERS, 10)
+    return await get_config_int(CFG_BRAVO_MAX_VIEWERS, 5)
 
 async def get_pin_q_mult() -> int:
     return await get_config_int(CFG_PIN_Q_MULT, 9)
