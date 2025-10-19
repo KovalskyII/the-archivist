@@ -1762,7 +1762,7 @@ async def handle_market_show(message: types.Message):
                 emoji, title = PERK_REGISTRY.get(code, ("", code))
                 offer_blocks.append(
                     f"<b>Товар:</b> Перк «{title}» {emoji}\n"
-                    f"<b>Команда покупки:</b> <code>купить перк{offer_id}</code>\n"
+                    f"<b>Команда покупки:</b> <code>купить перк {offer_id}</code>\n"
                     f"<b>Цена:</b> {fmt_money(price)}\n"
                     f"<b>Продавец:</b> {seller_repr}\n"
                 )
@@ -1770,7 +1770,7 @@ async def handle_market_show(message: types.Message):
                 link = html.escape(o.get("link") or "(ссылка не указана)")
                 offer_blocks.append(
                     f"<b>Товар:</b> {link}\n"
-                    f"<b>Команда покупки:</b> <code>купить лот{offer_id}</code>\n"
+                    f"<b>Команда покупки:</b> <code>купить лот {offer_id}</code>\n"
                     f"<b>Цена:</b> {fmt_money(price)}\n"
                     f"<b>Продавец:</b> {seller_repr}\n"
                 )
@@ -1879,7 +1879,7 @@ async def handle_perk_sell(message: types.Message, code: str, price: int):
             return
         offer_id = await create_perk_offer(user_id, code, price)
         await perk_escrow_open(user_id, code, offer_id)
-        await message.reply(f"Лот (перк «{PERK_REGISTRY[code][1]}») выставлен. ID: {offer_id}.")
+        await message.reply(f"Перк «{PERK_REGISTRY[code][1]}» выставлен. \n<b>Команда покупки:</v> <code>купить перк {offer_id}</code>.")
         return
 
     # 2) Ваучеров нет, но есть актив — отправляем АКТИВ в эскроу
@@ -1898,7 +1898,7 @@ async def handle_perk_sell(message: types.Message, code: str, price: int):
 
         offer_id = await create_perk_offer(user_id, code, price)
         await perk_escrow_open(user_id, code, offer_id)
-        await message.reply(f"Лот (перк «{PERK_REGISTRY[code][1]}») выставлен. ID: {offer_id}.")
+        await message.reply(f"Перк «{PERK_REGISTRY[code][1]}» выставлен. \n<b>Команда покупки:</v> <code>купить перк {offer_id}</code>.")
         return
 
     # сюда попадём, только если нет ни активного перка, ни ваучеров
