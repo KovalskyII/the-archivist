@@ -39,6 +39,11 @@ from db import (
     get_perk_credits, perk_credit_add, perk_credit_use,
     create_perk_offer, get_perk_escrow_owner, perk_escrow_open, perk_escrow_close,
     get_pin_q_mult,
+    # рядом с остальными импортами из db
+    get_bravo_window_sec, get_bravo_max_viewers,
+    hero_save_claim_msg, hero_get_last_claim_msg,
+    bravo_count_for_msg, bravo_already_claimed, record_bravo,
+
 
 
 
