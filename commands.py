@@ -1734,7 +1734,7 @@ async def handle_market_show(message: types.Message):
                 usage = "—"
 
             perk_blocks.append(
-                f"{emoji} <b>{name}</b>\n"
+                f"{emoji}перк <b>{name}</b>\n"
                 f"<b>Цена:</b> {price_str}\n"
                 f"<b>Описание:</b> {usage}"
             )
