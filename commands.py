@@ -2468,7 +2468,7 @@ async def handle_bravo(message: types.Message):
     new_count = current_count + 1
     await message.reply(
         f"👏 Вам тоже понравилось? Вы уже {new_count} кто оценил этот талант."
-        f"Держите {reward}".,
+        f"Держите {reward}.",
         parse_mode="HTML"
     )
 
