@@ -1771,7 +1771,7 @@ async def handle_market_show(message: types.Message):
                 link = html.escape(o.get("link") or "(ссылка не указана)")
                 offer_blocks.append(
                     f"<b>Товар:</b> {link}\n"
-                    f"<b>Номер лота:</b> {offer_id}\n"
+                    f"<b>Номер лота:</b> <code>{offer_id}</code>\n"
                     f"<b>Цена:</b> {fmt_money(price)}\n"
                     f"<b>Продавец:</b> {seller_repr}\n"
                     f"<b>Команда покупки:</b> купить лот {offer_id}"
@@ -1988,7 +1988,6 @@ async def handle_offer_buy(message: types.Message, offer_id: int):
         f"Комиссия (сжигание/налог): {fmt_money(burn)}\n"
         f"Перевод продавцу: {fmt_money(to_seller)}\n"
         f"{(perk_note + chr(10)) if perk_note else ''}"
-        f"Гарант: @kovalskyii\n"
         f"Продавец: {seller_mention}",
         parse_mode="HTML"
     )
@@ -2063,7 +2062,6 @@ async def handle_buy_perk(message: types.Message, code: str):
         f"Цена: {fmt_money(price)}\n"
         f"Комиссия (сжигание/налог): {fmt_money(burn)}\n"
         f"Перевод в сейф: {fmt_money(price - burn)}\n"
-        f"Гарант: @kovalskyii",
         parse_mode="HTML"
     )
 
