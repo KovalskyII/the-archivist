@@ -32,7 +32,6 @@ from db import (
     get_perk_lucky_chance, set_perk_lucky_chance,
     cell_get_balance, cell_deposit, cell_withdraw,
     bank_touch_all_and_total, bank_zero_all_and_sum,
-    get_cell_stor_fee_pct,
     get_seconds_since_last_bank_rob, record_bank_rob,
     get_bank_rob_cooldown_days, set_bank_rob_cooldown_days,
     get_cell_dep_fee_pct, set_cell_dep_fee_pct,
@@ -2411,49 +2410,56 @@ async def handle_hero_concert(message: types.Message):
     ts_unix = int(datetime.now(timezone.utc).timestamp())
     await hero_save_claim_msg(message.chat.id, user_id, sent.message_id, ts_unix)
 
+# --- Похвала концерта: "браво" ---
 async def handle_bravo(message: types.Message):
     chat_id = message.chat.id
-    hero_msg = await hero_get_last_claim_msg(chat_id)
-    if not hero_msg:
-        await message.reply("Сегодня никто не выступал.")
+    user_id = message.from_user.id
+
+    # 1) Берём последнее «сообщение концерта»
+    info = await hero_get_last_claim_msg(chat_id)
+    if not info or not info.get("msg_id"):
+        await message.reply("Пока не к чему кричать «Браво!» — концертный пост не найден.")
         return
 
-    msg_id = hero_msg["msg_id"]
-    ts    = hero_msg["ts"]
-    from time import time
-    window = await get_bravo_window_sec()
-    if int(time()) - int(ts) > window:
-        await message.reply("Уже всё разошлись, кому вы кричите, ненормальный?")
+    hero_id = int(info["hero_id"])
+    target_msg_id = int(info["msg_id"])
+    started_ts = int(info.get("ts") or 0)
+
+    # 2) Проверяем окно времени и лимит зрителей
+    window_sec = await get_bravo_window_sec()
+    max_viewers = await get_bravo_max_viewers()
+
+    now_ts = int(datetime.now(timezone.utc).timestamp())
+    if started_ts <= 0 or now_ts - started_ts > window_sec:
+        await message.reply("Все уже разошлись, кому вы хлопаете, ненормальный?")
         return
 
-    # только реплаем на пост выступления
-    if not message.reply_to_message or message.reply_to_message.message_id != msg_id:
-        await message.reply("Нужно ответить на сообщение о выступлении.")
+    current_count = await bravo_count_for_msg(chat_id, target_msg_id)
+    if current_count >= max_viewers:
+        await message.reply("Все хлопают и вы хлопаете? Ну что за стадный инстинкт.")
         return
 
-    # самопохвала
-    if message.reply_to_message.from_user and message.reply_to_message.from_user.id == message.from_user.id:
-        await message.reply("Сам себя не похвалишь — никто не похвалит.")
+    # 3) Защита от самопохвалы и дублей
+    if user_id == hero_id:
+        await message.reply("Сам себе «браво» — это по-рокзвёздному, но нельзя 😅")
+        return
+    if await bravo_already_claimed(user_id, chat_id, target_msg_id):
+        await message.reply("Ладони не сотрите, мсье. Вас уже услышали.")
         return
 
-    # лимит мест
-    claimed = await bravo_count_for_msg(chat_id, msg_id)
-    max_v = await get_bravo_max_viewers()
-    if claimed >= max_v:
-        # после 10-го: рубим остальным
-        await message.reply("Ну всё-всё, иди работай.")
-        return
+    # 4) Начисления/очки щедрости и лог
+    # Денег за «браво» не даём (reward=0), но копим очки щедрости — кирпичики будущего бонуса.
+    await add_generosity_points(user_id, 1, "bravo")
+    await record_bravo(user_id, chat_id, target_msg_id, reward=0)
 
-    # один раз на человека
-    if await bravo_already_claimed(message.from_user.id, chat_id, msg_id):
-        await message.reply("Не сотрите ладони в кровь, милейший.")
-        return
+    # 5) Ответ
+    new_count = current_count + 1
+    await message.reply(
+        f"👏 Браво засчитано! №{new_count} из {max_viewers}. "
+        f"Исполнитель: {mention_html(hero_id, 'Певец')}",
+        parse_mode="HTML"
+    )
 
-    # награда = жалованию (база)
-    reward = await get_stipend_base()
-    await record_bravo(message.from_user.id, chat_id, msg_id, reward)
-    await change_balance(message.from_user.id, reward, "браво", message.from_user.id)
-    await message.reply(f"Вам тоже понравилось? Было великолепно! Держите {fmt_money(reward)} за поддержку юного таланта")
 
 
 async def _pin_paid(message: types.Message, loud: bool):

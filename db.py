@@ -930,7 +930,7 @@ async def hero_get_current(chat_id: int) -> int | None:
         # если встретили протухшую запись — продолжаем искать выше по истории
     return None
 
-async def hero_has_claimed_today(chat_id: int, user_id: int, hours: int = 12) -> bool:
+async def hero_has_claimed_today(chat_id: int, user_id: int, hours: int = 0) -> bool:
     """
     True, если с последнего hero_claim в этом чате прошло меньше `hours` часов.
     По умолчанию — 12 часов.
