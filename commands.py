@@ -2370,11 +2370,20 @@ async def handle_hero_of_day(message: types.Message):
             m = (total % 3600) // 60
             cd_line = f"\nОставшееся время: <b>{h}ч {m}м</b>."
 
-        await message.reply(
-            f"🎤 Сегодня выступает — {mention_html(current, name)}.\n"
-            f"Команда для {HERO_TITLE.lower()}: «выступить».{cd_line}",
-            parse_mode="HTML"
-        )
+        claimed = await hero_has_claimed_today(chat_id, current, hours=4)
+        if not claimed:
+            txt = (
+                f"🎤 Сегодня выступает — {mention_html(current, name)}.\n"
+                f"Команда для героя: «выступить».{cd_line}"
+            )
+        else:
+            txt = (
+                f"🎤 Концерт уже прошёл.\n"
+                f"Кричим «браво» и делаем вид что понравилось.{cd_line}"
+            )
+
+        await message.reply(txt, parse_mode="HTML")
+
         return
 
 
