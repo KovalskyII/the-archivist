@@ -347,6 +347,15 @@ async def handle_message(message: types.Message):
             return
         await handle_hero_concert(message)
         return
+    # похвала выступления
+    if text_l == "браво":
+        # только в разрешённых группах/супергруппах
+        if message.chat.type not in ("group", "supergroup") or message.chat.id not in ALLOWED_CONCERT_CHATS:
+            await message.reply("Команда «браво» доступна только в клубном чате.")
+            return
+        await handle_bravo(message)
+        return
+
 
     if text_l == "закрепить пост":
         await _pin_paid(message, loud=False); return
@@ -2391,7 +2400,7 @@ async def handle_hero_concert(message: types.Message):
         return
 
     min_v, max_v = await _concert_bounds_from_index()
-    reward = random.randint(min_v, max_v)
+    reward = random.randint(min_v, max_v)бра
     await hero_record_claim(chat_id, user_id, reward)
     await change_balance(user_id, reward, "выступить", user_id)
 
