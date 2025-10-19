@@ -1898,8 +1898,9 @@ async def handle_perk_sell(message: types.Message, code: str, price: int):
 
         offer_id = await create_perk_offer(user_id, code, price)
         await perk_escrow_open(user_id, code, offer_id)
-        await message.reply(f"Перк «{PERK_REGISTRY[code][1]}» выставлен."
-                            f"\n<b>Команда покупки:</b> <code>купить лот {offer_id}</code>."
+        await message.reply(f"Пурк «{PERK_REGISTRY[code][1]}» выставлен."
+                            f"\n<b>Команда покупки:</b> <code>купить лот {offer_id}</code>.",
+                            parse_mode="HTML"
                             )
         return
 
@@ -1956,7 +1957,7 @@ async def handle_offer_buy(message: types.Message, offer_id: int):
             granted = False
             if code in buyer_perks:
                 await perk_credit_add(buyer_id, code)
-                perk_note = "Выдан ваучер (у вас уже есть этот перк)."
+                perk_note = "Выдан ваучер (у вас уже есть такой перк)."
             else:
                 await grant_perk(buyer_id, code)
                 granted = True
