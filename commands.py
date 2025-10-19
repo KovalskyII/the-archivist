@@ -1789,7 +1789,7 @@ async def handle_market_show(message: types.Message):
         parts.append(perks_header + "\n\n")
         parts.append("\n\n".join(perk_blocks) if perk_blocks else "Пока ничего нет.")
         parts.append("\n\n📦 <b>ЛОТЫ УЧАСТНИКОВ</b>\n<b>Команда покупки:</b> купить лот (номер лота)\n\n")
-        parts.append("\n\n".join(offer_blocks) if offer_blocks else "Пока нет активных лотов.")
+        parts.append("\n".join(offer_blocks) if offer_blocks else "Пока нет активных лотов.")
         parts.append("\n\n" + turnover_line + "\n" + burn_line)
 
         txt = "".join(parts)
