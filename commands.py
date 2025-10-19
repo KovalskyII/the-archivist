@@ -1788,7 +1788,7 @@ async def handle_market_show(message: types.Message):
         parts.append("🎖 <b>ПЕРКИ</b>\n")
         parts.append(perks_header + "\n\n")
         parts.append("\n\n".join(perk_blocks) if perk_blocks else "Пока ничего нет.")
-        parts.append("\n\n📦 <b>ЛОТЫ УЧАСТНИКОВ</b>\n")
+        parts.append("\n\n📦 <b>ЛОТЫ УЧАСТНИКОВ</b>\n<b>Команда покупки:</b> купить лот <номер лота>\n\n")
         parts.append("\n\n".join(offer_blocks) if offer_blocks else "Пока нет активных лотов.")
         parts.append("\n\n" + turnover_line + "\n" + burn_line)
 
@@ -2059,7 +2059,7 @@ async def handle_buy_perk(message: types.Message, code: str):
         f"Товар: «{title}»\n"
         f"Цена: {fmt_money(price)}\n"
         f"Комиссия (сжигание/налог): {fmt_money(burn)}\n"
-        f"Перевод в сейф: {fmt_money(price - burn)}\n"
+        f"Перевод в сейф: {fmt_money(price - burn)}\n",
         parse_mode="HTML"
     )
 
