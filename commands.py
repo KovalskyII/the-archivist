@@ -730,29 +730,21 @@ async def handle_message(message: types.Message):
             return
 
         ### ВРЕМЕННАЯ КОМАНДА ###
-        if text_l == "концерт сброс":
-            # доступно только куратору и в клубном чате
+        if text_l == "концерт обнулить":
             if message.from_user.id != KURATOR_ID:
-                await message.reply("Только Куратор может это делать.")
-                return
+                await message.reply("Только Куратор может это делать."); return
             if message.chat.type not in ("group", "supergroup") or message.chat.id not in ALLOWED_CONCERT_CHATS:
-                await message.reply("Команда доступна только в клубном чате.")
-                return
+                await message.reply("Команда доступна только в клубном чате."); return
 
             chat_id = message.chat.id
             current, _until = await hero_get_current_with_until(chat_id)
             if current is None:
-                await message.reply("Активного концерта нет — сначала «концерт».")
-                return
+                await message.reply("Активного концерта нет."); return
 
-            # 1) Перезаписываем «замок концерта» ровно на 4 часа
-            await hero_set_for_today(chat_id, current, hours=4)
+            # Обнуляем замок: until = now (0 часов)
+            await hero_set_for_today(chat_id, current, hours=0)
 
-            # 2) Персональный КД героя: старт «сейчас»
-            #    amount=0 — просто метка времени в history (для hero_has_claimed_today)
-            await hero_record_claim(chat_id, current, amount=0)
-
-            await message.reply("🔧 Сброс выполнен. Оба КД синхронизированы и идут 4 часа с текущего момента.")
+            await message.reply("Замок концерта обнулён. Запусти «концерт» — выберется новый исполнитель.")
             return
         ########################################################################################################
 
