@@ -1765,7 +1765,6 @@ async def handle_market_show(message: types.Message):
                     f"<b>Номер лота:</b> <code>{offer_id}</code>\n"
                     f"<b>Цена:</b> {fmt_money(price)}\n"
                     f"<b>Продавец:</b> {seller_repr}\n"
-                    f"<b>Команда покупки:</b> купить лот {offer_id}"
                 )
             else:
                 link = html.escape(o.get("link") or "(ссылка не указана)")
@@ -1774,7 +1773,6 @@ async def handle_market_show(message: types.Message):
                     f"<b>Номер лота:</b> <code>{offer_id}</code>\n"
                     f"<b>Цена:</b> {fmt_money(price)}\n"
                     f"<b>Продавец:</b> {seller_repr}\n"
-                    f"<b>Команда покупки:</b> купить лот {offer_id}"
                 )
 
 
