@@ -1705,7 +1705,7 @@ async def handle_market_show(message: types.Message):
                 return code.upper()
             return code.capitalize()
 
-        perks_header = "Команда покупки: купить перк (имя перка)"
+        perks_header = "<b>Команда покупки:</b> купить перк (имя перка)"
 
         # ===== Перки =====
         perk_blocks = []
@@ -1816,7 +1816,7 @@ async def handle_offer_create(message: types.Message, link: str, price: int):
         await message.reply("Цена должна быть положительной.")
         return
     offer_id = await create_offer(message.from_user.id, link, price)
-    await message.reply(f"Лот выставлен. ID: {offer_id}. Снять: «снять лот {offer_id}». Команда покупки появится на рынке.", parse_mode="HTML")
+    await message.reply(f"Лот выставлен. \nСнять: <code>снять лот {offer_id}</code>.", parse_mode="HTML")
 
 async def handle_offer_cancel(message: types.Message, offer_id: int):
     # снять может владелец или куратор
