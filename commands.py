@@ -351,14 +351,16 @@ async def handle_message(message: types.Message):
             return
         await handle_hero_concert(message)
         return
-    # похвала выступления
     if text_l == "браво":
-        # только в разрешённых группах/супергруппах
         if message.chat.type not in ("group", "supergroup") or message.chat.id not in ALLOWED_CONCERT_CHATS:
             await message.reply("Команда «браво» доступна только в клубном чате.")
             return
+        if not message.reply_to_message:
+            await message.reply("Нужно ответить на сообщение о выступлении.")
+            return
         await handle_bravo(message)
         return
+
 
 
     if text_l == "закрепить пост":
@@ -2443,6 +2445,10 @@ async def handle_bravo(message: types.Message):
     if current_count >= max_viewers:
         await message.reply("Все хлопают и вы хлопаете? Ну что за стадный инстинкт.")
         return
+    # привязка к конкретному посту концерта
+    if not message.reply_to_message or message.reply_to_message.message_id != target_msg_id:
+        await message.reply("Нужно ответить на сообщение о выступлении.")
+        return
 
     # 3) Защита от самопохвалы и дублей
     if user_id == hero_id:
@@ -2461,7 +2467,8 @@ async def handle_bravo(message: types.Message):
     # 5) Ответ
     new_count = current_count + 1
     await message.reply(
-        f"👏 Вам тоже понравилось? Вы уже {new_count} кто оценил этот талант.",
+        f"👏 Вам тоже понравилось? Вы уже {new_count} кто оценил этот талант."
+        f"Держите {reward}".,
         parse_mode="HTML"
     )
 
