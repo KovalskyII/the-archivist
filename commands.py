@@ -1762,7 +1762,7 @@ async def handle_market_show(message: types.Message):
                 emoji, title = PERK_REGISTRY.get(code, ("", code))
                 offer_blocks.append(
                     f"<b>Товар:</b> Перк «{title}» {emoji}\n"
-                    f"<b>Номер лота:</b> <pre>{offer_id}</pre>\n"
+                    f"<b>Номер лота:</b> <code>{offer_id}</code>\n"
                     f"<b>Цена:</b> {fmt_money(price)}\n"
                     f"<b>Продавец:</b> {seller_repr}\n"
                 )
@@ -1770,7 +1770,7 @@ async def handle_market_show(message: types.Message):
                 link = html.escape(o.get("link") or "(ссылка не указана)")
                 offer_blocks.append(
                     f"<b>Товар:</b> {link}\n"
-                    f"<b>Номер лота:</b> <pre>{offer_id}</pre>\n"
+                    f"<b>Номер лота:</b> <code>{offer_id}</code>\n"
                     f"<b>Цена:</b> {fmt_money(price)}\n"
                     f"<b>Продавец:</b> {seller_repr}\n"
                 )
