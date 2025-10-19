@@ -2399,7 +2399,7 @@ async def handle_hero_concert(message: types.Message):
         return
 
     min_v, max_v = await _concert_bounds_from_index()
-    reward = random.randint(min_v, max_v)бра
+    reward = random.randint(min_v, max_v)
     await hero_record_claim(chat_id, user_id, reward)
     await change_balance(user_id, reward, "выступить", user_id)
 
