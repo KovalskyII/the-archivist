@@ -1879,7 +1879,7 @@ async def handle_perk_sell(message: types.Message, code: str, price: int):
             return
         offer_id = await create_perk_offer(user_id, code, price)
         await perk_escrow_open(user_id, code, offer_id)
-        await message.reply(f"Перк «{PERK_REGISTRY[code][1]}» выставлен. \n<b>Команда покупки:</v> <code>купить перк {offer_id}</code>.")
+        await message.reply(f"Перк «{PERK_REGISTRY[code][1]}» выставлен. \n<b>Команда покупки:</b> <code>купить перк {offer_id}</code>.")
         return
 
     # 2) Ваучеров нет, но есть актив — отправляем АКТИВ в эскроу
