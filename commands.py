@@ -1663,7 +1663,7 @@ async def handle_theft(message: types.Message):
         remain = COOLDOWN - seconds
         hours = remain // 3600
         minutes = (remain % 3600) // 60
-        await message.reply(f"Нужно схорониться. Повторная ходка через {hours}ч {minutes}м.")
+        await message.reply(f"Рано еще вылазить. Повторная ходка через {hours}ч {minutes}м.")
         return
     income = await get_income()
     victim_balance = await get_balance(victim.id)
@@ -1898,7 +1898,9 @@ async def handle_perk_sell(message: types.Message, code: str, price: int):
 
         offer_id = await create_perk_offer(user_id, code, price)
         await perk_escrow_open(user_id, code, offer_id)
-        await message.reply(f"Перк «{PERK_REGISTRY[code][1]}» выставлен. \n<b>Команда покупки:</b> <code>купить лот {offer_id}</code>.")
+        await message.reply(f"Перк «{PERK_REGISTRY[code][1]}» выставлен."
+                            f"\n<b>Команда покупки:</b> <code>купить лот {offer_id}</code>."
+                            )
         return
 
     # сюда попадём, только если нет ни активного перка, ни ваучеров
