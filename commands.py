@@ -2453,15 +2453,15 @@ async def handle_bravo(message: types.Message):
         return
 
     # 4) Начисления/очки щедрости и лог
-    # Денег за «браво» не даём (reward=0), но копим очки щедрости — кирпичики будущего бонуса.
+    reward = await get_stipend_base()           # ← берём базу жалования
+    await change_balance(user_id, reward, "браво", user_id)
     await add_generosity_points(user_id, 1, "bravo")
-    await record_bravo(user_id, chat_id, target_msg_id, reward=0)
+    await record_bravo(user_id, chat_id, target_msg_id, reward=reward)
 
     # 5) Ответ
     new_count = current_count + 1
     await message.reply(
-        f"👏 Браво засчитано! №{new_count} из {max_viewers}. "
-        f"Исполнитель: {mention_html(hero_id, 'Певец')}",
+        f"👏 Вам тоже понравилось? Вы уже {new_count} кто оценил этот талант.",
         parse_mode="HTML"
     )
 
