@@ -1762,7 +1762,7 @@ async def handle_market_show(message: types.Message):
                 emoji, title = PERK_REGISTRY.get(code, ("", code))
                 offer_blocks.append(
                     f"<b>Товар:</b> Перк «{title}» {emoji}\n"
-                    f"<b>Номер лота:</b> <code>{offer_id}</code>\n"
+                    f"<b>Команда покупки:</b> <code>купить перк{offer_id}</code>\n"
                     f"<b>Цена:</b> {fmt_money(price)}\n"
                     f"<b>Продавец:</b> {seller_repr}\n"
                 )
@@ -1770,7 +1770,7 @@ async def handle_market_show(message: types.Message):
                 link = html.escape(o.get("link") or "(ссылка не указана)")
                 offer_blocks.append(
                     f"<b>Товар:</b> {link}\n"
-                    f"<b>Номер лота:</b> <code>{offer_id}</code>\n"
+                    f"<b>Команда покупки:</b> <code>купить лот{offer_id}</code>\n"
                     f"<b>Цена:</b> {fmt_money(price)}\n"
                     f"<b>Продавец:</b> {seller_repr}\n"
                 )
@@ -1816,7 +1816,7 @@ async def handle_offer_create(message: types.Message, link: str, price: int):
         await message.reply("Цена должна быть положительной.")
         return
     offer_id = await create_offer(message.from_user.id, link, price)
-    await message.reply(f"Лот выставлен. \nСнять: <code>снять лот {offer_id}</code>.", parse_mode="HTML")
+    await message.reply(f"Лот выставлен. \n<b>Снять:</b> <code>снять лот {offer_id}</code>.", parse_mode="HTML")
 
 async def handle_offer_cancel(message: types.Message, offer_id: int):
     # снять может владелец или куратор
