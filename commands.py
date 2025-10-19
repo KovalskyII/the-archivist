@@ -2394,7 +2394,7 @@ async def handle_hero_concert(message: types.Message):
         await message.reply("Вы не являетесь сегодняшним исполнителем.")
         return
 
-    if await hero_has_claimed_today(chat_id, user_id, hours=12):
+    if await hero_has_claimed_today(chat_id, user_id, hours=0):
         await message.reply("Ваш гонорар уже получен. На следующем концерте выступит кто-то еще.")
         return
 
