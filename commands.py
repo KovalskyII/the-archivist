@@ -1749,11 +1749,10 @@ async def handle_market_show(message: types.Message):
             link = html.escape(o["link"] or "(ссылка не указана)")
             offer_id = o["offer_id"]
 
-            # юзерка продавца (если нет username — выводим кликабельное имя)
 
             try:
                 member = await message.bot.get_chat_member(message.chat.id, seller_id)
-                seller_repr = mention_html(seller_id, member.user.full_name or "Участник")
+                seller_repr = member.user.full_name or "Участник"
             except Exception:
                 seller_repr = mention_html(seller_id, "Участник")
 
@@ -1879,7 +1878,11 @@ async def handle_perk_sell(message: types.Message, code: str, price: int):
             return
         offer_id = await create_perk_offer(user_id, code, price)
         await perk_escrow_open(user_id, code, offer_id)
-        await message.reply(f"Перк «{PERK_REGISTRY[code][1]}» выставлен. \n<b>Команда покупки:</b> <code>купить лот {offer_id}</code>.")
+        await message.reply(f"Перк «{PERK_REGISTRY[code][1]}» выставлен."
+                            f"\n<b>Команда снятия:</b> <code>снять лот {offer_id}</code>."
+                            f"\n<b>Команда покупки:</b> <code>купить лот {offer_id}</code>.",
+                            parse_mode="HTML"
+                            )
         return
 
     # 2) Ваучеров нет, но есть актив — отправляем АКТИВ в эскроу
@@ -1898,7 +1901,8 @@ async def handle_perk_sell(message: types.Message, code: str, price: int):
 
         offer_id = await create_perk_offer(user_id, code, price)
         await perk_escrow_open(user_id, code, offer_id)
-        await message.reply(f"Пурк «{PERK_REGISTRY[code][1]}» выставлен."
+        await message.reply(f"Перк «{PERK_REGISTRY[code][1]}» выставлен."
+                            f"\n<b>Команда снятия:</b> <code>снять лот {offer_id}</code>."
                             f"\n<b>Команда покупки:</b> <code>купить лот {offer_id}</code>.",
                             parse_mode="HTML"
                             )

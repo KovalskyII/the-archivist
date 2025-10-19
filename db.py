@@ -668,9 +668,9 @@ async def set_income(v: int):
 async def get_multipliers() -> Dict[str, int]:
     return {
         "dice": await get_config_int(CFG_MULT_DICE, 3),
-        "darts": await get_config_int(CFG_MULT_DARTS, 4),
-        "bowling": await get_config_int(CFG_MULT_BOWLING, 5),
-        "slots": await get_config_int(CFG_MULT_SLOTS, 6),
+        "darts": await get_config_int(CFG_MULT_DARTS, 3),
+        "bowling": await get_config_int(CFG_MULT_BOWLING, 3),
+        "slots": await get_config_int(CFG_MULT_SLOTS, 20),
     }
 
 async def set_multiplier(game: str, x: int):
