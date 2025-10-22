@@ -28,8 +28,7 @@ if AIOMAJOR >= 3:
     from aiohttp import ClientTimeout
     from aiogram.client.session.aiohttp import AiohttpSession
 
-    timeout = ClientTimeout(connect=30, sock_read=70)
-    session = AiohttpSession(timeout=timeout)
+    session = AiohttpSession(timeout=70)  # секунды, просто число
     bot = Bot(token=TOKEN, session=session)
     dp = Dispatcher()
     router = Router()
