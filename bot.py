@@ -25,7 +25,12 @@ if AIOMAJOR >= 3:
         from aiogram.router import Router
     from aiogram.types import Message
 
-    bot = Bot(token=TOKEN)
+    from aiohttp import ClientTimeout
+    from aiogram.client.session.aiohttp import AiohttpSession
+
+    timeout = ClientTimeout(connect=30, sock_read=70)
+    session = AiohttpSession(timeout=timeout)
+    bot = Bot(token=TOKEN, session=session)
     dp = Dispatcher()
     router = Router()
 
@@ -44,7 +49,7 @@ if AIOMAJOR >= 3:
     async def main():
         await init_db()
         dp.include_router(router)
-        await dp.start_polling(bot)
+        await dp.start_polling(bot, polling_timeout=50)
 
     if __name__ == "__main__":
         try:

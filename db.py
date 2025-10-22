@@ -77,6 +77,8 @@ async def _recreate_all(db):
 
 async def init_db():
     async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("PRAGMA journal_mode=WAL;")
+        await db.execute("PRAGMA synchronous=NORMAL;")
         await db.execute("PRAGMA foreign_keys = ON")
         async with db.execute("PRAGMA user_version") as cur:
             row = await cur.fetchone()
