@@ -27,10 +27,9 @@ if AIOMAJOR >= 3:
         from aiogram import Bot, Dispatcher
         from aiogram.router import Router
 
-    from aiohttp import ClientTimeout
     from aiogram.client.session.aiohttp import AiohttpSession
 
-    session = AiohttpSession(timeout=ClientTimeout(total=70))
+    session = AiohttpSession(timeout=70)
     bot = Bot(token=TOKEN, session=session)
 
     async def _health(_):
