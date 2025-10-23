@@ -69,7 +69,7 @@ async def main():
                 polling_timeout=40,                              # уже стоит — ок
                 allowed_updates=dp.resolve_used_update_types(),  # не тянем лишнее
                 drop_pending_updates=True,                      # не разгребаем «хвост» после рестартов
-            )
+            ),
         )
             except Exception:
         logging.exception("BOT CRASH")
