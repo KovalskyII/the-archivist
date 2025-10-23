@@ -8,6 +8,9 @@ from db import init_db
 from commands import router 
 import aiogram
 from aiogram import Bot, Dispatcher
+import socket
+import aiohttp
+from aiogram.client.session.aiohttp import AiohttpSession
 
 
 load_dotenv()
@@ -37,9 +40,15 @@ async def main():
     token = os.getenv("BOT_TOKEN")
     if not token:
         raise ValueError("BOT_TOKEN отсутствует")
-    from aiogram.client.session.aiohttp import AiohttpSession
-    session = AiohttpSession(timeout=90)
+    connector = aiohttp.TCPConnector(
+        family=socket.AF_INET,        # форсируем IPv4 (IPv6 иногда плывёт на Fly)
+        limit=50,                     # разумный пул коннектов
+        ttl_dns_cache=300,            # кеш DNS
+        keepalive_timeout=120,        # держим соединения
+    )
+    session = AiohttpSession(timeout=90, connector=connector)
     bot = Bot(token=token, session=session)
+
     dp = Dispatcher()
 
     # 2) критично: БД + роутер
@@ -54,9 +63,15 @@ async def main():
     try:
         await asyncio.gather(
             run_health(),
-            dp.start_polling(bot, stop_event=stop_event, polling_timeout=40),
+            dp.start_polling(
+                bot,
+                stop_event=stop_event,
+                polling_timeout=40,                              # уже стоит — ок
+                allowed_updates=dp.resolve_used_update_types(),  # не тянем лишнее
+                drop_pending_updates=True,                      # не разгребаем «хвост» после рестартов
+            ),
         )
-    except Exception:
+            except Exception:
         logging.exception("BOT CRASH")
         raise
 

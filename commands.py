@@ -73,6 +73,10 @@ from db import (
     # рынок
     create_offer, cancel_offer, list_active_offers, record_burn,
 )
+
+from aiolimiter import AsyncLimiter
+tg_limiter = AsyncLimiter(28, 1)
+
 router = Router()
 @router.message(F.photo & F.caption)
 async def on_photo(message: types.Message):
@@ -93,6 +97,15 @@ CLUB_CHAT_ID = -1002431055065
 ALLOWED_CONCERT_CHATS = {CLUB_CHAT_ID}
 
 DB_PATH = "/data/bot_data.sqlite"
+
+async def safe_reply(message, text, **kw):
+    async with tg_limiter:
+        return await message.reply(text, **kw)
+
+async def safe_send(bot, chat_id, text, **kw):
+    async with tg_limiter:
+        return await bot.send_message(chat_id, text, **kw)
+
 
 # --- Герой дня (концерт) ---
 HERO_CONCERT_MIN = 10
