@@ -4,9 +4,9 @@ import logging
 import signal
 from dotenv import load_dotenv
 from aiohttp import web
-from commands import handle_message, handle_photo_command
 from db import init_db
 from contextlib import suppress
+from commands import router 
 
 
 load_dotenv()
@@ -22,29 +22,16 @@ AIOMAJOR = int(aiogram.__version__.split(".")[0])
 if AIOMAJOR >= 3:
     # -------- aiogram v3 (разные раскладки импорта) --------
     try:
-        from aiogram import Bot, Dispatcher, F, Router
+        from aiogram import Bot, Dispatcher
     except Exception:
-        from aiogram import Bot, Dispatcher, F
+        from aiogram import Bot, Dispatcher, 
         from aiogram.router import Router
-    from aiogram.types import Message
 
     from aiohttp import ClientTimeout
     from aiogram.client.session.aiohttp import AiohttpSession
 
     session = AiohttpSession(timeout=ClientTimeout(total=70))
     bot = Bot(token=TOKEN, session=session)
-
-    @router.message(F.photo & F.caption)
-    async def on_photo(message: Message):
-        await handle_photo_command(message)
-
-    @router.message()  # ← ловим все апдейты и фильтруем уже внутри
-    async def on_text(message: Message):
-        if not getattr(message, "text", None):
-            return
-        if getattr(message.from_user, "is_bot", False):
-            return
-        await handle_message(message)
 
     async def _health(_):
         return web.Response(text="ok")

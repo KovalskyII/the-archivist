@@ -10,6 +10,8 @@ import aiosqlite
 
 from aiogram import types
 from aiogram.types import FSInputFile
+from aiogram import Router, F
+
 
 from db import (
     # базовые
@@ -71,6 +73,20 @@ from db import (
     # рынок
     create_offer, cancel_offer, list_active_offers, record_burn,
 )
+router = Router()
+@router.message(F.photo & F.caption)
+async def on_photo(message: types.Message):
+    # используем уже существующую функцию
+    await handle_photo_command(message)
+
+@router.message()
+async def on_text(message: types.Message):
+    # фильтры такие же, как были в bot.py
+    if not getattr(message, "text", None):
+        return
+    if getattr(message.from_user, "is_bot", False):
+        return
+    await handle_message(message)
 
 KURATOR_ID = 164059195
 CLUB_CHAT_ID = -1002431055065
