@@ -24,7 +24,7 @@ if AIOMAJOR >= 3:
     try:
         from aiogram import Bot, Dispatcher
     except Exception:
-        from aiogram import Bot, Dispatcher, 
+        from aiogram import Bot, Dispatcher
         from aiogram.router import Router
 
     from aiohttp import ClientTimeout
