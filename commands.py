@@ -75,7 +75,21 @@ from db import (
 )
 
 from aiolimiter import AsyncLimiter
-tg_limiter = AsyncLimiter(28, 1)
+
+tg_limiter = AsyncLimiter(28, 1)  # ~28 запросов/сек
+
+async def safe_reply(message, text, **kw):
+    async with tg_limiter:
+        return await message.reply(text, **kw)
+
+async def safe_send(bot, chat_id, text, **kw):
+    async with tg_limiter:
+        return await bot.send_message(chat_id, text, **kw)
+
+async def safe_edit(bot, chat_id, message_id, text, **kw):
+    async with tg_limiter:
+        return await bot.edit_message_text(chat_id=chat_id, message_id=message_id, text=text, **kw)
+
 
 router = Router()
 @router.message(F.photo & F.caption)
@@ -98,13 +112,6 @@ ALLOWED_CONCERT_CHATS = {CLUB_CHAT_ID}
 
 DB_PATH = "/data/bot_data.sqlite"
 
-async def safe_reply(message, text, **kw):
-    async with tg_limiter:
-        return await message.reply(text, **kw)
-
-async def safe_send(bot, chat_id, text, **kw):
-    async with tg_limiter:
-        return await bot.send_message(chat_id, text, **kw)
 
 
 # --- Герой дня (концерт) ---
@@ -748,7 +755,7 @@ async def handle_message(message: types.Message):
             cur_b = await get_stipend_base()
             cur_bonus = await get_stipend_bonus()
             cur_income = await get_income()
-            await message.reply(
+            await safe_reply(message,
                 "🛠️ Индекс обновлён.\n"
                 f"• База жалования: {fmt_money(cur_b)}\n"
                 f"• Надбавка: {fmt_money(cur_bonus)}\n"
@@ -927,12 +934,12 @@ async def handle_rating(message: types.Message):
         except Exception:
             pass
         lines.append(f"{i}. {mention_html(user_id, name)} — {fmt_money(balance)}")
-    await message.reply("\n".join(lines), parse_mode="HTML")
+    await safe_reply(message,"\n".join(lines), parse_mode="HTML")
 
 async def handle_club_members(message: types.Message):
     rows = await get_all_roles()
     if not rows:
-        await message.reply("Пока что в клубе пусто.")
+        await safe_reply(message,"Пока что в клубе пусто.")
         return
     lines = ["🎭 <b>Члены Клуба Le Cadeau Noir:</b>\n"]
     for user_id, role in rows:
@@ -944,12 +951,12 @@ async def handle_club_members(message: types.Message):
             pass
         mention = mention_html(user_id, name)
         lines.append(f"{mention} — <b>{role}</b>")
-    await message.reply("\n".join(lines), parse_mode="HTML")
+    await safe_reply(message,"\n".join(lines), parse_mode="HTML")
 
 async def handle_key_holders_cmd(message: types.Message):
     user_ids = await get_key_holders()
     if not user_ids:
-        await message.reply("Пока ни у кого нет ключа.")
+        await safe_reply(message,"Пока ни у кого нет ключа.")
         return
     lines = ["🗝️ <b>Хранители ключа:</b>\n"]
     for user_id in user_ids:
@@ -960,7 +967,7 @@ async def handle_key_holders_cmd(message: types.Message):
         except Exception:
             pass
         lines.append(f"{mention_html(user_id, name)}")
-    await message.reply("\n".join(lines), parse_mode="HTML")
+    await safe_reply(message,"\n".join(lines), parse_mode="HTML")
 
 async def handle_clear_db(message: types.Message):
     if message.from_user.id != KURATOR_ID:
@@ -1191,7 +1198,7 @@ async def handle_dozhd(message: types.Message):
     payout = await generosity_try_payout(giver_id)
     if payout > 0:
         await message.reply(f"🎁 Бонус щедрости: +{fmt_money(payout)}")
-    await message.reply("🌧 Прошёл дождь. Намокли: " + ", ".join(breakdown), parse_mode="HTML")
+    await safe_reply(message,"🌧 Прошёл дождь. Намокли: " + ", ".join(breakdown), parse_mode="HTML")
 
 # ------------- игры (пока только кубик, остальные готовы к добавлению) -------------
 
@@ -1487,7 +1494,7 @@ async def handle_my_perks(message: types.Message):
         base_lines.append("\nВаучеры (неактивные):")
         base_lines.extend(vouchers_inactive_lines)
 
-    await message.reply("\n".join(base_lines))
+    await safe_reply(message,"\n".join(base_lines))
 
 
 async def handle_perks_of(message: types.Message):
@@ -1507,7 +1514,7 @@ async def handle_perks_of(message: types.Message):
             items.append((code, f"• {code}"))
     for _, line in sorted(items):
         lines.append(line)
-    await message.reply("\n".join(lines), parse_mode="HTML")
+    await safe_reply(message,"\n".join(lines), parse_mode="HTML")
 
 async def handle_grant_perk_universal(message: types.Message, code: str):
     if not message.reply_to_message:
@@ -1517,10 +1524,10 @@ async def handle_grant_perk_universal(message: types.Message, code: str):
     perks = await get_perks(target.id)
     emoji, title = PERK_REGISTRY.get(code, ("", code))
     if code in perks:
-        await message.reply(f"У {mention_html(target.id, target.full_name)} уже есть «{title}».", parse_mode="HTML")
+        await safe_reply(message,f"У {mention_html(target.id, target.full_name)} уже есть «{title}».", parse_mode="HTML")
         return
     await grant_perk(target.id, code)
-    await message.reply(f"Перк «{title}» дарован {mention_html(target.id, target.full_name)}.", parse_mode="HTML")
+    await safe_reply(message,f"Перк «{title}» дарован {mention_html(target.id, target.full_name)}.", parse_mode="HTML")
 
 async def handle_revoke_perk_universal(message: types.Message, code: str):
     if not message.reply_to_message:
@@ -1539,7 +1546,7 @@ async def handle_revoke_perk_universal(message: types.Message, code: str):
     credits = await get_perk_credits(target.id, code)
     if credits > 0 and await perk_credit_use(target.id, code):
         await grant_perk(target.id, code)
-        await message.reply(
+        await safe_reply(message,
             f"Перк «{title}» уничтожен у {mention_html(target.id, target.full_name)}, "
             f"но ваучер автоматически активирован (осталось ваучеров: {credits - 1}).",
             parse_mode="HTML"
@@ -1547,7 +1554,7 @@ async def handle_revoke_perk_universal(message: types.Message, code: str):
         return
 
     # если ваучеров нет — просто подтвердим уничтожение
-    await message.reply(
+    await safe_reply(message,
         f"Перк «{title}» уничтожен у {mention_html(target.id, target.full_name)}.",
         parse_mode="HTML"
     )
@@ -1558,7 +1565,7 @@ async def handle_perk_holders_list(message: types.Message, code_raw: str):
     # 1) проверяем, что такой перк вообще существует
     if code not in PERK_REGISTRY:
         available = ", ".join(sorted(PERK_REGISTRY.keys()))
-        await message.reply(f"Такого перка нет. Доступные коды: {available}")
+        await safe_reply(message,f"Такого перка нет. Доступные коды: {available}")
         return
 
     emoji, title = PERK_REGISTRY[code]
@@ -1581,7 +1588,7 @@ async def handle_perk_holders_list(message: types.Message, code_raw: str):
             pass
         lines.append(f"• {mention_html(uid, name)}")
 
-    await message.reply("\n".join(lines), parse_mode="HTML")
+    await safe_reply(message,"\n".join(lines), parse_mode="HTML")
 
 
 
@@ -1597,7 +1604,7 @@ async def handle_perk_registry(message: types.Message):
         nice = f"{emoji} {title}".strip()
         lines.append(f"• {nice} — {cnt}")
 
-    await message.reply("\n".join(lines))
+    await safe_reply(message,"\n".join(lines))
 
 
 async def handle_stipend_claim(message: types.Message):
@@ -1660,7 +1667,7 @@ async def handle_stipend_claim(message: types.Message):
         lines.append(f"надбавка: {fmt_money(bonus)}")
     if "премия" in perks:
         lines.append(f"{premium_note}: {fmt_money(premium_bonus)}")
-    await message.reply("\n".join(lines))
+    await safe_reply(message,"\n".join(lines))
 
 
 async def handle_theft(message: types.Message):
@@ -1823,7 +1830,7 @@ async def handle_market_show(message: types.Message):
 
         try:
             # aiogram v3
-            await message.reply(
+            await safe_reply(message,
                 txt,
                 parse_mode="HTML",
                 link_preview_options=types.LinkPreviewOptions(is_disabled=True)
@@ -1906,7 +1913,7 @@ async def handle_perk_sell(message: types.Message, code: str, price: int):
             return
         offer_id = await create_perk_offer(user_id, code, price)
         await perk_escrow_open(user_id, code, offer_id)
-        await message.reply(f"Перк «{PERK_REGISTRY[code][1]}» выставлен."
+        await safe_reply(message,f"Перк «{PERK_REGISTRY[code][1]}» выставлен."
                             f"\n<b>Команда снятия:</b> <code>снять лот {offer_id}</code>."
                             f"\n<b>Команда покупки:</b> <code>купить лот {offer_id}</code>.",
                             parse_mode="HTML"
@@ -1929,7 +1936,7 @@ async def handle_perk_sell(message: types.Message, code: str, price: int):
 
         offer_id = await create_perk_offer(user_id, code, price)
         await perk_escrow_open(user_id, code, offer_id)
-        await message.reply(f"Перк «{PERK_REGISTRY[code][1]}» выставлен."
+        await safe_reply(message,f"Перк «{PERK_REGISTRY[code][1]}» выставлен."
                             f"\n<b>Команда снятия:</b> <code>снять лот {offer_id}</code>."
                             f"\n<b>Команда покупки:</b> <code>купить лот {offer_id}</code>.",
                             parse_mode="HTML"
@@ -2013,7 +2020,7 @@ async def handle_offer_buy(message: types.Message, offer_id: int):
 
     seller_mention = mention_html(offer["seller_id"], "Продавец")
 
-    await message.reply(
+    await safe_reply(message,
         f"🧾 Контракт {contract_id}\n"
         f"Покупатель: {mention_html(buyer_id, message.from_user.full_name)}\n"
         f"{product_line}"
@@ -2042,7 +2049,7 @@ async def handle_buy_emerald(message: types.Message):
     sale_id = await insert_history(buyer_id, "emerald_buy", price, None)
     today = datetime.utcnow().strftime("%Y%m%d")
     contract_id = f"C-{today}-{sale_id}"
-    await message.reply(
+    await safe_reply(message,
         f"🧾 Контракт {contract_id}\n"
         f"Покупатель: {mention_html(buyer_id, message.from_user.full_name)}\n"
         f"Товар: «Эмеральд»\n"
@@ -2088,7 +2095,7 @@ async def handle_buy_perk(message: types.Message, code: str):
     today = datetime.utcnow().strftime("%Y%m%d")
     contract_id = f"C-{today}-{sale_id}"
     emoji, title = PERK_REGISTRY[code]
-    await message.reply(
+    await safe_reply(message,
         f"🧾 Контракт {contract_id}\n"
         f"Покупатель: {mention_html(buyer_id, message.from_user.full_name)}\n"
         f"Товар: «{title}»\n"
@@ -2113,7 +2120,7 @@ async def handle_vault_enable(message: types.Message):
     if rid is None:
         await message.reply("Кап меньше текущего оборота — увеличьте кап.")
         return
-    await message.reply(f"Сейф включён. Кап: {fmt_int(cap)}. В обороте: {fmt_int(circulating)}. Остальное заложено в сейф.")
+    await safe_reply(message,f"Сейф включён. Кап: {fmt_int(cap)}. В обороте: {fmt_int(circulating)}. Остальное заложено в сейф.")
 
 async def get_circulating_safe() -> int:
     # обёртка на случай изоляции
@@ -2132,7 +2139,7 @@ async def handle_vault_reset(message: types.Message):
     if rid is None:
         await message.reply("Кап меньше текущего оборота — увеличьте кап.")
         return
-    await message.reply(f"Сейф перезапущен. Кап: {fmt_int(cap)}. В обороте: {fmt_int(circulating)}. Остальное заложено в сейф.")
+    await safe_reply(message,f"Сейф перезапущен. Кап: {fmt_int(cap)}. В обороте: {fmt_int(circulating)}. Остальное заложено в сейф.")
 
 
 async def handle_vault_stats(message: types.Message):
@@ -2167,7 +2174,7 @@ async def handle_vault_stats(message: types.Message):
         f"💼 <b>Жалование:</b> {fmt_money(base)}\n"
 
     )
-    await message.reply(txt, parse_mode="HTML")
+    await safe_reply(message,txt, parse_mode="HTML")
 
 
 
@@ -2287,7 +2294,7 @@ async def handle_commands_catalog(message: types.Message):
         "🎭 <b>Члены клуба</b>\n" + bullets(members) + "\n\n"
         "💳 <b>Платные команды</b>\n" + bullets(paid)
     )
-    await message.reply(txt, parse_mode="HTML")
+    await safe_reply(message,txt, parse_mode="HTML")
 
 async def handle_commands_curator(message: types.Message):
     if message.from_user.id != KURATOR_ID:
@@ -2345,7 +2352,7 @@ async def handle_commands_curator(message: types.Message):
     for title, items in blocks:
         parts.append(f"\n{title}\n" + bullets(items))
 
-    await message.reply("\n".join(parts), parse_mode="HTML", disable_web_page_preview=True)
+    await safe_reply(message,"\n".join(parts), parse_mode="HTML", disable_web_page_preview=True)
 
 
 # --------- ГЕРОЙ ДНЯ ---------
@@ -2406,7 +2413,7 @@ async def handle_hero_of_day(message: types.Message):
                 f"Кричим «браво» и делаем вид что понравилось.{cd_line}"
             )
 
-        await message.reply(txt, parse_mode="HTML")
+        await safe_reply(message,txt, parse_mode="HTML")
 
         return
 
@@ -2576,7 +2583,7 @@ async def handle_cell_deposit_cmd(message: types.Message, amount: int):
     # списываем с кармана
     await change_balance(message.from_user.id, -amount, "cell_deposit", message.from_user.id)
     gross, fee, new_cell = await cell_deposit(message.from_user.id, amount)
-    await message.reply(
+    await safe_reply(message,
         "✅ Депозит выполнен\n"
         f"Внесено: {fmt_money(gross)}\n"
         f"Комиссия: {fmt_money(fee)}\n"
@@ -2609,7 +2616,7 @@ async def handle_cell_withdraw_all_cmd(message: types.Message):
     taken, new_cell = await cell_withdraw(message.from_user.id, bal)
     if taken > 0:
         await change_balance(message.from_user.id, taken, "cell_withdraw_all_payout", message.from_user.id)
-    await message.reply(
+    await safe_reply(message,
         "✅ Вывод всего баланса\n"
         f"Выведено: {fmt_money(taken)}\n"
         f"Баланс ячейки: {fmt_money(new_cell)}"
@@ -2624,7 +2631,7 @@ async def handle_bank_summary_cmd(message: types.Message):
     total = await bank_touch_all_and_total()
     dep = await get_cell_dep_fee_pct()
     stor = await get_cell_stor_fee_pct()
-    await message.reply(
+    await safe_reply(message,
         "🏛 Банк\n"
         f"Общий баланс ячеек: {fmt_money(total)}\n"
         f"Комиссия пополнения: {dep}%\n"
@@ -2647,7 +2654,7 @@ async def handle_bank_rob_cmd(message: types.Message):
         days  = remain // (24*3600)
         hours = (remain % (24*3600)) // 3600
         minutes = (remain % 3600) // 60
-        await message.reply(f"Подготовка нового налёта возьмет еще {days}д {hours}ч {minutes}м.")
+        await safe_reply(message,f"Подготовка нового налёта возьмет еще {days}д {hours}ч {minutes}м.")
         return
 
     roll = random.randint(1, 100)
