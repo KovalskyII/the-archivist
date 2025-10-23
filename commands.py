@@ -43,6 +43,7 @@ from db import (
     get_bravo_window_sec, get_bravo_max_viewers,
     hero_save_claim_msg, hero_get_last_claim_msg,
     bravo_count_for_msg, bravo_already_claimed, record_bravo,
+    get_vault_free_amount,
 
 
 
@@ -960,10 +961,8 @@ async def handle_obnulit_balansy(message: types.Message):
 # ----------- деньги: вручить / взыскать / передать / дождь -----------
 
 async def _get_vault_room() -> int:
-    stats = await get_economy_stats()
-    if not stats:
-        return -1  # сейф не включён
-    return stats["vault"]
+    # Сколько можно реально выдать из сейфа = сейф - банк(ячейки)
+    return await get_vault_free_amount()
 
 async def handle_vruchit(message: types.Message):
     if not message.reply_to_message:

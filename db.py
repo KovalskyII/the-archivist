@@ -1251,3 +1251,17 @@ async def bravo_already_claimed(user_id: int, chat_id: int, msg_id: int) -> bool
 
 async def record_bravo(user_id: int, chat_id: int, msg_id: int, reward: int):
     await insert_history(user_id, "bravo_claim", reward, f"chat_id={chat_id};msg_id={msg_id}")
+
+# --- SAFE FREE = vault - bank(total) ---
+async def get_vault_free_amount() -> int:
+    """
+    Сколько можно реально выдать из сейфа:
+    свободный сейф = сейф - сумма всех ячеек (банк).
+    Возвращает 0, если сейф выключен или ушли в минус.
+    """
+    stats = await get_economy_stats()  # уже собирает текущий сейф
+    if not stats:
+        return 0
+    # важно: сперва «дотронуться» до банка, чтобы применились комиссии хранения
+    total_bank = await bank_touch_all_and_total()
+    return max(0, int(stats["vault"]) - int(total_bank))

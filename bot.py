@@ -1,8 +1,9 @@
 import os
 import asyncio
 import logging
+import signal
 from dotenv import load_dotenv
-
+from aiohttp import web
 from commands import handle_message, handle_photo_command
 from db import init_db
 
@@ -45,10 +46,37 @@ if AIOMAJOR >= 3:
             return
         await handle_message(message)
 
+    async def _health(_):
+        return web.Response(text="ok")
+
+    async def run_health():
+        app = web.Application()
+        app.router.add_get("/healthz", _health)
+        port = int(os.getenv("PORT", "8080"))
+        runner = web.AppRunner(app)
+        await runner.setup()
+        site = web.TCPSite(runner, "0.0.0.0", port)
+        await site.start()
+
+    stop_event = asyncio.Event()
+    def _stop(*_):
+        stop_event.set()
+
     async def main():
-        await init_db()
-        dp.include_router(router)
-        await dp.start_polling(bot, polling_timeout=50)
+        # ... инициализация bot, dp и т.п. ...
+
+        loop = asyncio.get_running_loop()
+        for s in (signal.SIGINT, signal.SIGTERM):
+            loop.add_signal_handler(s, _stop)
+
+        try:
+            await asyncio.gather(
+                run_health(),                 # HTTP /healthz для Fly
+                dp.start_polling(bot, stop_event=stop_event),
+            )
+        except Exception:
+            logging.exception("BOT CRASH")
+            raise
 
     if __name__ == "__main__":
         try:
