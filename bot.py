@@ -63,7 +63,11 @@ if AIOMAJOR >= 3:
         stop_event.set()
 
     async def main():
-        # ... инициализация bot, dp и т.п. ...
+        # 1) инициализация БД (создаст таблицы/схему при запуске)
+        await init_db()
+
+        # 2) подключаем роутер к диспетчеру, иначе хендлеры не видят апдейты
+        dp.include_router(router)
 
         loop = asyncio.get_running_loop()
         for s in (signal.SIGINT, signal.SIGTERM):
@@ -71,12 +75,10 @@ if AIOMAJOR >= 3:
 
         try:
             await asyncio.gather(
-                run_health(),                 # HTTP /healthz для Fly
+                run_health(),                               # HTTP /healthz для Fly
                 dp.start_polling(bot, stop_event=stop_event),
             )
-        except Exception:
-            logging.exception("BOT CRASH")
-            raise
+
 
     if __name__ == "__main__":
         try:
