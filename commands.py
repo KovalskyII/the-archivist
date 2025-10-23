@@ -2647,10 +2647,10 @@ async def handle_bank_summary_cmd(message: types.Message):
     dep = await get_cell_dep_fee_pct()
     stor = await get_cell_stor_fee_pct()
     await safe_reply(message,
-        "🏛 Банк\n"
-        f"Общий баланс ячеек: {fmt_money(total)}\n"
-        f"Комиссия пополнения: {dep}%\n"
-        f"Комиссия хранения: {stor}% / 6ч"
+        "🏛 <b>БАНК</b>\n\n"
+        f"<b>Общий баланс ячеек:</b> {fmt_money(total)}\n"
+        f"<b>Комиссия пополнения:</b> {dep}%\n"
+        f"<b>Комиссия хранения:</b> {stor}% / 6ч"
     )
 
 async def handle_bank_rob_cmd(message: types.Message):
