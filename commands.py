@@ -2165,9 +2165,9 @@ async def handle_vault_stats(message: types.Message):
         "🏦 <b>ЭКОНОМИКА КЛУБА</b>\n\n"
         f"🧱 <b>КАП:</b> {cap_s}\n"
         f"🪙 <b>Текущий саплай:</b> {supply_s}\n" 
-        f"🔐 <b>В сейфе:</b> {fmt_money(vault_free)}\n"
+        f"🔐 <b>В сейфе:</b> {vault_free}\n"
         f"🔄 <b>На руках:</b> {circulating_s}\n"
-        f"🏛 <b>Банк (ячейки):</b> {fmt_money(bank_total)}\n"
+        f"🏛 <b>Банк:</b> {bank_total}\n"
         f"🔥 <b>Сожжено:</b> {burned_s} ({burned_pct:.2f}%)\n"
         
         f"· · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · ·\n"
