@@ -40,13 +40,8 @@ async def main():
     token = os.getenv("BOT_TOKEN")
     if not token:
         raise ValueError("BOT_TOKEN отсутствует")
-    connector = aiohttp.TCPConnector(
-        family=socket.AF_INET,        # форсируем IPv4 (IPv6 иногда плывёт на Fly)
-        limit=50,                     # разумный пул коннектов
-        ttl_dns_cache=300,            # кеш DNS
-        keepalive_timeout=120,        # держим соединения
-    )
-    session = AiohttpSession(timeout=90, connector=connector)
+
+    session = AiohttpSession(timeout=90)
     bot = Bot(token=token, session=session)
 
     dp = Dispatcher()
