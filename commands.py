@@ -45,7 +45,7 @@ from db import (
     get_bravo_window_sec, get_bravo_max_viewers,
     hero_save_claim_msg, hero_get_last_claim_msg,
     bravo_count_for_msg, bravo_already_claimed, record_bravo,
-    get_vault_free_amount,
+    get_vault_free_amount, get_vault_net, get_bank_total,
 
 
 
@@ -997,8 +997,7 @@ async def handle_obnulit_balansy(message: types.Message):
 # ----------- деньги: вручить / взыскать / передать / дождь -----------
 
 async def _get_vault_room() -> int:
-    # Сколько можно реально выдать из сейфа = сейф - банк(ячейки)
-    return await get_vault_free_amount()
+    return await get_vault_net()
 
 async def handle_vruchit(message: types.Message):
     if not message.reply_to_message:
@@ -2158,14 +2157,17 @@ async def handle_vault_stats(message: types.Message):
     base  = await get_stipend_base()
     bonus = await get_stipend_bonus()
     theft  = await get_income()
+    bank_total = await bank_touch_all_and_total()   # актуализируем банк и берём сумму
+    vault_free = await get_vault_free_amount()    
 
 
     txt = (
         "🏦 <b>ЭКОНОМИКА КЛУБА</b>\n\n"
         f"🧱 <b>КАП:</b> {cap_s}\n"
         f"🪙 <b>Текущий саплай:</b> {supply_s}\n" 
-        f"🔐 <b>В сейфе:</b> {vault_s}\n"
+        f"🔐 <b>В сейфе:</b> {fmt_money(vault_free)}\n"
         f"🔄 <b>На руках:</b> {circulating_s}\n"
+        f"🏛 <b>Банк (ячейки):</b> {fmt_money(bank_total)}\n"
         f"🔥 <b>Сожжено:</b> {burned_s} ({burned_pct:.2f}%)\n"
         
         f"· · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · ·\n"

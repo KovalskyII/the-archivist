@@ -1265,3 +1265,20 @@ async def get_vault_free_amount() -> int:
     # важно: сперва «дотронуться» до банка, чтобы применились комиссии хранения
     total_bank = await bank_touch_all_and_total()
     return max(0, int(stats["vault"]) - int(total_bank))
+
+# --- BANK/VАULT helpers ---
+
+async def get_bank_total() -> int:
+    """
+    Сумма всех ячеек (банк). Вызывает lazy-touch хранения.
+    """
+    total = await bank_touch_all_and_total()  # функция у тебя уже есть
+    return int(total)
+
+async def get_vault_net() -> int:
+    """
+    Сейф «свободно» = сырое значение сейфа - банк (ячейки), не ниже 0.
+    """
+    stats = await get_economy_stats()  # как и раньше получаем сырое значение сейфа
+    bank = await get_bank_total()
+    return max(0, int(stats.get("vault", 0)) - bank)
