@@ -63,19 +63,26 @@ if AIOMAJOR >= 3:
         stop_event.set()
 
     async def main():
-        # 1) инициализация БД (создаст таблицы/схему при запуске)
-        await init_db()
+        # 1) токен и сессия
+        token = os.getenv("BOT_TOKEN")
+        if not token:
+            raise ValueError("BOT_TOKEN отсутствует")
+        session = AiohttpSession(timeout=ClientTimeout(total=70))
+        bot = Bot(token=token, session=session)
+        dp = Dispatcher()
 
-        # 2) подключаем роутер к диспетчеру, иначе хендлеры не видят апдейты
+        # 2) критично: БД + роутер
+        await init_db()
         dp.include_router(router)
 
+        # 3) сигналы и параллельный запуск
         loop = asyncio.get_running_loop()
         for s in (signal.SIGINT, signal.SIGTERM):
             loop.add_signal_handler(s, _stop)
 
         try:
             await asyncio.gather(
-                run_health(),                               # HTTP /healthz для Fly
+                run_health(),
                 dp.start_polling(bot, stop_event=stop_event),
             )
         except Exception:
