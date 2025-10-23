@@ -45,7 +45,7 @@ from db import (
     get_bravo_window_sec, get_bravo_max_viewers,
     hero_save_claim_msg, hero_get_last_claim_msg,
     bravo_count_for_msg, bravo_already_claimed, record_bravo,
-    get_vault_free_amount, get_vault_net, get_bank_total,
+    get_vault_free_amount, 
 
 
 
@@ -997,7 +997,7 @@ async def handle_obnulit_balansy(message: types.Message):
 # ----------- деньги: вручить / взыскать / передать / дождь -----------
 
 async def _get_vault_room() -> int:
-    return await get_vault_net()
+    return await get_vault_free_amount()
 
 async def handle_vruchit(message: types.Message):
     if not message.reply_to_message:
@@ -2147,36 +2147,49 @@ async def handle_vault_stats(message: types.Message):
         await message.reply("Сейф ещё не включён.")
         return
 
-    cap_s          = fmt_int(stats["cap"])
-    circulating_s  = fmt_int(stats["circulating"])
-    burned_s       = fmt_int(stats["burned"])
-    vault_s        = fmt_int(stats["vault"])
-    supply_s       = fmt_int(stats.get("supply", stats["cap"] - stats["burned"]))
-    bps_pct        = fmt_percent_bps(stats["burn_bps"])
-    burned_pct     = (stats["burned"] / stats["cap"] * 100) if stats["cap"] > 0 else 0.0
-    base  = await get_stipend_base()
-    bonus = await get_stipend_bonus()
-    theft  = await get_income()
-    bank_total = await bank_touch_all_and_total()   # актуализируем банк и берём сумму
-    vault_free = await get_vault_free_amount()    
+    stats = await get_economy_stats()
+    if not stats:
+        await message.reply("Сейф ещё не включён.")
+        return
 
+    bank_total     = await bank_touch_all_and_total()   # сумма всех ячеек
+    vault_free     = await get_vault_free_amount()      # сейф без банка (свободно)
+    circulating    = stats["circulating"]
+    burned         = stats["burned"]
+    cap            = stats["cap"]
+    supply         = stats.get("supply", cap - burned)
+    burn_bps       = stats["burn_bps"]
+    base           = await get_stipend_base()
+    bonus          = await get_stipend_bonus()
+    theft          = await get_income()
+    burned_pct     = (burned / cap * 100) if cap > 0 else 0.0
+
+    cap_s         = fmt_int(cap)
+    supply_s      = fmt_int(supply)
+    circulating_s = fmt_int(circulating)
+    burned_s      = fmt_int(burned)
+    vault_free_s  = fmt_money(vault_free)
+    bank_total_s  = fmt_money(bank_total)
+    bps_pct       = fmt_percent_bps(burn_bps)
+    base_s        = fmt_money(base)
+    # bonus/theft — по желанию, если выводишь ниже
+      
 
     txt = (
         "🏦 <b>ЭКОНОМИКА КЛУБА</b>\n\n"
         f"🧱 <b>КАП:</b> {cap_s}\n"
-        f"🪙 <b>Текущий саплай:</b> {supply_s}\n" 
-        f"🔐 <b>В сейфе:</b> {vault_free}\n"
+        f"🪙 <b>Текущий саплай:</b> {supply_s}\n"
+        f"🔓 <b>Сейф:</b> {vault_free_s}\n"
+        f"🏛 <b>В банке:</b> {bank_total_s}\n"
         f"🔄 <b>На руках:</b> {circulating_s}\n"
-        f"🏛 <b>Банк:</b> {bank_total}\n"
         f"🔥 <b>Сожжено:</b> {burned_s} ({burned_pct:.2f}%)\n"
-        
-        f"· · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · ·\n"
+        "· · · · · · · · · · · · · · · · · · · · · · · · · · · · · · · ·\n"
         f"<b>ИНДЕКСЫ и КОЭФФИЦИЕНТЫ</b>\n\n"
         f"🧯 <b>Сжигание (налоги):</b> {bps_pct}\n"
-        f"💼 <b>Жалование:</b> {fmt_money(base)}\n"
-
+        f"💼 <b>Жалование:</b> {base_s}\n"
     )
-    await safe_reply(message,txt, parse_mode="HTML")
+    await safe_reply(message, txt, parse_mode="HTML")
+
 
 
 

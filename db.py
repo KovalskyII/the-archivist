@@ -1266,3 +1266,4 @@ async def get_vault_free_amount() -> int:
     total_bank = await bank_touch_all_and_total()
     return max(0, int(stats["vault"]) - int(total_bank))
 
+
