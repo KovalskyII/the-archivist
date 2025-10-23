@@ -71,7 +71,7 @@ async def main():
                 drop_pending_updates=True,                      # не разгребаем «хвост» после рестартов
             ),
         )
-            except Exception:
+    except Exception:
         logging.exception("BOT CRASH")
         raise
 
