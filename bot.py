@@ -6,6 +6,8 @@ from dotenv import load_dotenv
 from aiohttp import web
 from commands import handle_message, handle_photo_command
 from db import init_db
+from contextlib import suppress
+
 
 load_dotenv()
 TOKEN = os.getenv("BOT_TOKEN")
@@ -29,10 +31,8 @@ if AIOMAJOR >= 3:
     from aiohttp import ClientTimeout
     from aiogram.client.session.aiohttp import AiohttpSession
 
-    session = AiohttpSession(timeout=70)  # секунды, просто число
+    session = AiohttpSession(timeout=ClientTimeout(total=70))
     bot = Bot(token=TOKEN, session=session)
-    dp = Dispatcher()
-    router = Router()
 
     @router.message(F.photo & F.caption)
     async def on_photo(message: Message):
@@ -78,6 +78,9 @@ if AIOMAJOR >= 3:
                 run_health(),                               # HTTP /healthz для Fly
                 dp.start_polling(bot, stop_event=stop_event),
             )
+        except Exception:
+            logging.exception("BOT CRASH")
+            raise
 
 
     if __name__ == "__main__":
