@@ -53,7 +53,7 @@ if AIOMAJOR >= 3:
         token = os.getenv("BOT_TOKEN")
         if not token:
             raise ValueError("BOT_TOKEN отсутствует")
-        session = AiohttpSession(timeout=ClientTimeout(total=70))
+        session = AiohttpSession(timeout=70)
         bot = Bot(token=token, session=session)
         dp = Dispatcher()
 
