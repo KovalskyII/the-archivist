@@ -3,14 +3,14 @@ FROM python:3.11-slim
 ENV PYTHONUNBUFFERED=1
 WORKDIR /app
 
-ARG CACHEBUST=0
+# Сначала зависимости (кэш эффективнее)
+COPY requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -U pip \
+ && pip install --no-cache-dir -r /app/requirements.txt \
+ && python -c "import aiogram; print('aiogram version in image:', aiogram.__version__)"
 
-COPY requirements.txt ./
-RUN echo "CACHEBUST=${CACHEBUST}" && \
-    RUN pip install --no-cache-dir -U pip \
-    && pip install --no-cache-dir aiogram==3.6.0 aiohttp aiosqlite python-dotenv aiolimiter==1.1.0
-    python -c "import aiogram; print('aiogram version in image:', aiogram.__version__)"
+# Потом код
+COPY . /app
 
-COPY . .
-
+EXPOSE 8080
 CMD ["python", "bot.py"]
