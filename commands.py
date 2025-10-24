@@ -3,6 +3,7 @@ import os
 import sys
 import asyncio
 import random
+from random import randint
 import html
 from typing import List, Tuple
 from datetime import datetime, timezone
@@ -1686,7 +1687,10 @@ async def handle_theft(message: types.Message):
 
     # NEW: «Щит» у жертвы — 50% срыв кражи
     victim_perks = await get_perks(victim.id)
-    if "щит" in victim_perks and chance(p):
+    p = await get_perk_shield_chance()  # 0..100
+
+    has_shield = any(str(x).lower() == "щит" for x in victim_perks)
+    if has_shield and randint(1, 100) <= p:
         await record_theft(thief_id, 0, victim.id, success=False)
         await message.reply("🛡️ Щит жертвы вспыхнул — вы охуели от таких спецэфектов. Отсидитесь 12 часов.")
         return
