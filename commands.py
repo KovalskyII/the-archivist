@@ -2176,8 +2176,8 @@ async def handle_vault_stats(message: types.Message):
       
 
     txt = (
-        "🏦 <b>ЭКОНОМИКА КЛУБА</b>\n\n"
-        f"🧱 <b>КАП:</b> {cap_s}\n"
+        "🏦 <b>ЭКОНОМИКА КЛУБА</b> 🏦\n"
+        f"начальный саплай: {cap_s}\n\n"
         f"🪙 <b>Текущий саплай:</b> {supply_s}\n"
         f"🔓 <b>Сейф:</b> {vault_free_s}\n"
         f"🏛 <b>В банке:</b> {bank_total_s}\n"
@@ -2648,9 +2648,9 @@ async def handle_bank_summary_cmd(message: types.Message):
     stor = await get_cell_stor_fee_pct()
     await safe_reply(message,
         "🏛 <b>БАНК</b>\n\n"
-        f"<b>Общий баланс ячеек:</b> {fmt_money(total)}\n"
-        f"<b>Комиссия пополнения:</b> {dep}%\n"
-        f"<b>Комиссия хранения:</b> {stor}% / 6ч",
+        f"🗄 <b>Общий баланс ячеек:</b> {fmt_money(total)}\n"
+        f"💰 <b>Комиссия пополнения:</b> {dep}%\n"
+        f"💰 <b>Комиссия хранения:</b> {stor}% / 6ч",
         parse_mode="HTML"
     )
 
