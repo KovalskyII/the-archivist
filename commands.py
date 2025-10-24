@@ -57,6 +57,7 @@ from db import (
 from aiolimiter import AsyncLimiter
 
 tg_limiter = AsyncLimiter(28, 1)  # ~28 запросов/сек
+router = Router()
 
 # ==== один раз, рядом с импортами ====
 async def _gatekeep_message(message: types.Message) -> bool:
