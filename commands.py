@@ -2650,7 +2650,8 @@ async def handle_bank_summary_cmd(message: types.Message):
         "🏛 <b>БАНК</b>\n\n"
         f"<b>Общий баланс ячеек:</b> {fmt_money(total)}\n"
         f"<b>Комиссия пополнения:</b> {dep}%\n"
-        f"<b>Комиссия хранения:</b> {stor}% / 6ч"
+        f"<b>Комиссия хранения:</b> {stor}% / 6ч",
+        parse_mode="HTML"
     )
 
 async def handle_bank_rob_cmd(message: types.Message):
