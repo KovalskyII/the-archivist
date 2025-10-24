@@ -1,6 +1,8 @@
 import aiosqlite
 import re
 from typing import Optional, Dict, Any, List, Tuple
+import json
+from datetime import datetime, timezone, timedelta
 
 DB_PATH = "/data/bot_data.sqlite"
 SCHEMA_VERSION = 1  # схему не меняем
@@ -884,8 +886,6 @@ async def create_perk_offer(seller_id: int, code: str, price: int) -> int:
 # ------- герой дня (через history) -------
 
 # ------- герой дня (покомнатно) -------
-from datetime import datetime, timezone, timedelta
-
 def _utc_now():
     return datetime.now(timezone.utc)
 
@@ -1045,21 +1045,28 @@ async def remove_from_blacklist(uid: int) -> None:
 
 # --- string config helpers (нужны для JSON-конфигов) ---
 async def get_config_str(key: str, default: str = "") -> str:
-    # если у тебя уже есть get_config/set_config — используем их
+    async with aiosqlite.connect(DB_PATH) as db:
+        cur = await db.execute(
+            "SELECT reason FROM history WHERE action = ? ORDER BY id DESC LIMIT 1",
+            (f"config_str:{key}",)
+        )
+        row = await cur.fetchone()
+    if not row:
+        return default
     try:
-        val = await get_config(key)  # общий геттер, должен вернуть str|None
-    except NameError:
-        # fallback на int-геттеры тут не годится — нам нужно строковое значение
-        # Если у тебя нет get_config(), ПОКА оставь так — и скажи, я дам SQL-обёртки под твою схему.
-        val = None
-    return val if val is not None else default
+        payload = json.loads(row[0])
+        return str(payload.get("value", default))
+    except Exception:
+        return str(row[0])
 
 async def set_config_str(key: str, value: str) -> None:
-    try:
-        await set_config(key, str(value))  # общий сеттер
-    except NameError:
-        # как и выше, если нет set_config(), скажи — дам точные SQL под твою таблицу config
-        raise
+    payload = json.dumps({"value": str(value)}, ensure_ascii=False)
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "INSERT INTO history (ts, user_id, amount, action, reason) VALUES (?, ?, ?, ?, ?)",
+            (int(datetime.now(timezone.utc).timestamp()), 0, 0, f"config_str:{key}", payload)
+        )
+        await db.commit()
 
 
 async def _get_json_cfg(key: str) -> dict:
