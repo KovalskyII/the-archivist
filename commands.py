@@ -96,21 +96,7 @@ async def safe_edit(bot, chat_id, message_id, text, **kw):
 
 
 
-@router.message(F.photo & F.caption)
-async def on_photo(message: types.Message):
-    if not await _gatekeep_message(message):
-        return
-    await handle_photo_command(message)
 
-@router.message()
-async def on_text(message: types.Message):
-    if not getattr(message, "text", None):
-        return
-    if getattr(message.from_user, "is_bot", False):
-        return
-    if not await _gatekeep_message(message):
-        return
-    await handle_message(message)
 
 KURATOR_ID = 164059195
 CLUB_CHAT_ID = -1002431055065
@@ -801,19 +787,19 @@ async def handle_message(message: types.Message):
             left = await get_perk_primary_left(code)
             await safe_reply(message, f"Лимит для перка «{code}» установлен: {n}. Доступно на рынке сейчас: {left}.")
 
-        @router.message(F.text.lower() == "армагеддон вкл")
+        @router.message(F.text.regexp(r"^армагеддон вкл$", flags=re.I))
         async def cmd_armageddon_on(message: types.Message):
             if not await is_curator(message.from_user.id): return
             await set_armageddon(True)
             await safe_reply(message, "☢️ Режим АРМАГЕДДОН: включён. Каждое сообщение стоит 1 нуар.")
 
-        @router.message(F.text.lower() == "армагеддон выкл")
+        @router.message(F.text.regexp(r"^армагеддон выкл$", flags=re.I))
         async def cmd_armageddon_off(message: types.Message):
             if not await is_curator(message.from_user.id): return
             await set_armageddon(False)
             await safe_reply(message, "☮️ Режим АРМАГЕДДОН: выключён.")
 
-        @router.message(F.reply_to_message, F.text.lower() == "черная метка")
+        @router.message(F.reply_to_message, F.text.regexp(r"^черная метка$", flags=re.I))
         async def cmd_black_mark(message: types.Message):
             if not await is_curator(message.from_user.id): return
             uid = message.reply_to_message.from_user.id
@@ -832,14 +818,14 @@ async def handle_message(message: types.Message):
             await add_to_blacklist(uid)
             await safe_reply(message, "Вручена чёрная метка. Игрок исключён из Клуба.")
 
-        @router.message(F.reply_to_message, F.text.lower() == "белая метка")
+        @router.message(F.reply_to_message, F.text.regexp(r"^белая метка$", flags=re.I))
         async def cmd_white_mark(message: types.Message):
             if not await is_curator(message.from_user.id): return
             uid = message.reply_to_message.from_user.id
             await remove_from_blacklist(uid)
             await safe_reply(message, "Метка снята. Игрок снова в Клубе.")
 
-        @router.message(F.text.lower() == "подмести клуб")
+        @router.message(F.text.regexp(r"^подмести клуб$", flags=re.I))
         async def cmd_cleanup_leavers(message: types.Message):
             if not await is_curator(message.from_user.id): return
             cleaned = 0
@@ -2846,3 +2832,20 @@ async def handle_burn_cmd(message: types.Message, amount: int):
     await record_burn(amount, f"user_burn:{user_id}")
 
     await message.reply(f"🔥 Ты сжег {fmt_money(amount)}. Было тепло, но теперь они утеряны навсегда.")
+
+
+@router.message(F.photo & F.caption)
+async def on_photo(message: types.Message):
+    if not await _gatekeep_message(message):
+        return
+    await handle_photo_command(message)
+
+@router.message()
+async def on_text(message: types.Message):
+    if not getattr(message, "text", None):
+        return
+    if getattr(message.from_user, "is_bot", False):
+        return
+    if not await _gatekeep_message(message):
+        return
+    await handle_message(message)
