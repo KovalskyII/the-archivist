@@ -1014,6 +1014,92 @@ CFG_PERK_SHIELD_CHANCE      = "perk_shield_chance"       # "Щит": шанс у
 CFG_PERK_CROUPIER_CHANCE    = "perk_croupier_chance"     # "Крупье": шанс частичного рефанда в играх
 CFG_PERK_PHILANTHROPE_CHANCE= "perk_philanthrope_chance" # "Филантроп": шанс подарка шестому в дожде
 CFG_PERK_LUCKY_CHANCE       = "perk_lucky_chance"        # "Везунчик": шанс автопопадания в дождь
+# ==== Лимиты и учёт перков (кап/минт) ====
+CFG_PERK_CAPS   = "perk_caps_json"      # {"кража":10, "щит":10, ...}
+CFG_PERK_MINTED = "perk_minted_json"    # {"кража":7, "щит":3, ...}
+
+CFG_ARMAGEDDON_ON = "armageddon_on"   # "1"/"0"
+CFG_BLACKLIST     = "blacklist_json"  # [user_id, ...]
+
+async def is_armageddon_on() -> bool:
+    return (await get_config_str(CFG_ARMAGEDDON_ON, "0")) == "1"
+
+async def set_armageddon(on: bool) -> None:
+    await set_config_str(CFG_ARMAGEDDON_ON, "1" if on else "0")
+
+async def get_blacklist() -> set[int]:
+    data = await _get_json_cfg(CFG_BLACKLIST)
+    return set(int(x) for x in data.get("ids", []))
+
+async def add_to_blacklist(uid: int) -> None:
+    data = await _get_json_cfg(CFG_BLACKLIST)
+    ids = set(int(x) for x in data.get("ids", []))
+    ids.add(int(uid))
+    await _set_json_cfg(CFG_BLACKLIST, {"ids": list(ids)})
+
+async def remove_from_blacklist(uid: int) -> None:
+    data = await _get_json_cfg(CFG_BLACKLIST)
+    ids = set(int(x) for x in data.get("ids", []))
+    ids.discard(int(uid))
+    await _set_json_cfg(CFG_BLACKLIST, {"ids": list(ids)})
+
+
+async def _get_json_cfg(key: str) -> dict:
+    import json
+    raw = await get_config_str(key, "{}")
+    try:
+        return json.loads(raw) if raw else {}
+    except Exception:
+        return {}
+
+async def _set_json_cfg(key: str, value: dict) -> None:
+    import json
+    await set_config_str(key, json.dumps(value, ensure_ascii=False))
+
+async def get_perk_caps() -> dict:
+    return await _get_json_cfg(CFG_PERK_CAPS)
+
+async def set_perk_cap(code: str, n: int) -> None:
+    caps = await get_perk_caps()
+    caps[str(code).strip().lower()] = max(0, int(n))
+    await _set_json_cfg(CFG_PERK_CAPS, caps)
+
+async def get_perk_minted() -> dict:
+    return await _get_json_cfg(CFG_PERK_MINTED)
+
+async def add_perk_minted(code: str, delta: int) -> None:
+    m = await get_perk_minted()
+    k = str(code).strip().lower()
+    m[k] = max(0, int(m.get(k, 0)) + int(delta))
+    await _set_json_cfg(CFG_PERK_MINTED, m)
+
+async def get_perk_primary_left(code: str) -> int:
+    caps = await get_perk_caps()
+    m = await get_perk_minted()
+    cap = int(caps.get(code, 0))
+    used = int(m.get(code, 0))
+    return max(0, cap - used)
+
+async def recalc_perk_minted(perk_codes: list[str]) -> None:
+    """
+    Пересчёт minted: перки у игроков + ваучеры (первичка/неактив.) → minted.
+    Вторичка (лоты игроков) не влияет.
+    """
+    m = {}
+    for uid in await list_all_user_ids():
+        inv = await get_perks(uid)  # список кодов перков на руках
+        for code in inv:
+            k = str(code).strip().lower()
+            m[k] = m.get(k, 0) + 1
+
+    # ваучеры, если у тебя есть таблица/хранилище ваучеров:
+    for code, cnt in await list_all_vouchers_counts():  # верни словарь {"кража":2,...}
+        k = str(code).strip().lower()
+        m[k] = m.get(k, 0) + int(cnt)
+
+    await _set_json_cfg(CFG_PERK_MINTED, m)
+
+
 
 async def get_perk_shield_chance() -> int:
     return max(0, min(100, await get_config_int(CFG_PERK_SHIELD_CHANCE, 50)))  # дефолт 50%

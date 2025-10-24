@@ -16,41 +16,20 @@ from aiogram import Router, F
 
 from db import (
     # базовые
-    get_balance, change_balance, set_role, get_role,
-    grant_key, revoke_key, has_key, get_last_history,
-    get_top_users, get_all_roles, reset_user_balance,
-    reset_all_balances, set_role_image, get_role_with_image,
-    get_key_holders, get_known_users, hero_get_current, hero_set_for_today,
-    hero_has_claimed_today, hero_record_claim,
-    get_stipend_base, get_stipend_bonus, set_stipend_base, set_stipend_bonus,
-    get_generosity_mult_pct, add_generosity_points, generosity_try_payout,
-    get_market_turnover_days, codeword_get_active, codeword_mark_win,
-    codeword_set, codeword_cancel_active, set_generosity_mult_pct,
-    set_generosity_threshold, set_price_pin, set_price_pin_loud,
-    insert_history, get_circulating, get_price_pin, get_price_pin_loud,
-    get_generosity_points, get_generosity_threshold, hero_get_current_with_until,
-    get_perk_shield_chance, set_perk_shield_chance,
-    get_perk_croupier_chance, set_perk_croupier_chance,
-    get_perk_philanthrope_chance, set_perk_philanthrope_chance,
-    get_perk_lucky_chance, set_perk_lucky_chance,
-    cell_get_balance, cell_deposit, cell_withdraw,
-    bank_touch_all_and_total, bank_zero_all_and_sum,
-    get_seconds_since_last_bank_rob, record_bank_rob,
-    get_bank_rob_cooldown_days, set_bank_rob_cooldown_days,
-    get_cell_dep_fee_pct, set_cell_dep_fee_pct,
-    get_cell_stor_fee_pct, set_cell_stor_fee_pct,
-    get_perk_credits, perk_credit_add, perk_credit_use,
-    create_perk_offer, get_perk_escrow_owner, perk_escrow_open, perk_escrow_close,
-    get_pin_q_mult,
-    # рядом с остальными импортами из db
-    get_bravo_window_sec, get_bravo_max_viewers,
-    hero_save_claim_msg, hero_get_last_claim_msg,
-    bravo_count_for_msg, bravo_already_claimed, record_bravo,
-    get_vault_free_amount, 
-
-
-
-
+    get_balance, change_balance, set_role, get_role, grant_key, revoke_key, has_key, get_last_history,
+    get_top_users, get_all_roles, reset_user_balance, reset_all_balances, set_role_image, get_role_with_image,
+    get_key_holders, get_known_users, hero_get_current, hero_set_for_today, hero_has_claimed_today, hero_record_claim,
+    get_stipend_base, get_stipend_bonus, set_stipend_base, set_stipend_bonus, get_generosity_mult_pct, add_generosity_points,
+    generosity_try_payout, get_market_turnover_days, codeword_get_active, codeword_mark_win, codeword_set, codeword_cancel_active, 
+    set_generosity_mult_pct, set_generosity_threshold, set_price_pin, set_price_pin_loud, insert_history, get_circulating, get_price_pin, 
+    get_price_pin_loud, get_generosity_points, get_generosity_threshold, hero_get_current_with_until, get_perk_shield_chance,
+    set_perk_shield_chance, get_perk_croupier_chance, set_perk_croupier_chance, get_perk_philanthrope_chance, set_perk_philanthrope_chance,
+    get_perk_lucky_chance, set_perk_lucky_chance, cell_get_balance, cell_deposit, cell_withdraw, bank_touch_all_and_total, bank_zero_all_and_sum,
+    get_seconds_since_last_bank_rob, record_bank_rob, get_bank_rob_cooldown_days, set_bank_rob_cooldown_days, get_cell_dep_fee_pct, set_cell_dep_fee_pct,
+    get_cell_stor_fee_pct, set_cell_stor_fee_pct, get_perk_credits, perk_credit_add, perk_credit_use, create_perk_offer, get_perk_escrow_owner,
+    perk_escrow_open, perk_escrow_close, get_pin_q_mult, get_bravo_window_sec, get_bravo_max_viewers, hero_save_claim_msg, hero_get_last_claim_msg,
+    bravo_count_for_msg, bravo_already_claimed, record_bravo, get_vault_free_amount, get_perk_caps, set_perk_cap, get_perk_primary_left, add_perk_minted,
+    recalc_perk_minted, is_armageddon_on, set_armageddon, get_blacklist, add_to_blacklist, remove_from_blacklist,
 
     # анти-дубль
     is_msg_processed, mark_msg_processed,
@@ -79,6 +58,29 @@ from aiolimiter import AsyncLimiter
 
 tg_limiter = AsyncLimiter(28, 1)  # ~28 запросов/сек
 
+# ==== один раз, рядом с импортами ====
+async def _gatekeep_message(message: types.Message) -> bool:
+    # 1) Чёрный список
+    bl = await get_blacklist()
+    if message.from_user.id in bl:
+        return False
+
+    # 2) Армагеддон (не тарифицируем команды, если хочешь оставить это послабление)
+    if await is_armageddon_on():
+        is_command = bool(getattr(message, "text", "") and message.text.startswith(("/", ".")))
+        if not is_command:
+            bal = await get_balance(message.from_user.id) or 0
+            if bal <= 0:
+                try:
+                    await message.delete()  # нужны права админа
+                except Exception:
+                    pass
+                return False
+            await change_balance(message.from_user.id, -1, "армагеддон", message.from_user.id)
+
+    return True
+
+
 async def safe_reply(message, text, **kw):
     async with tg_limiter:
         return await message.reply(text, **kw)
@@ -92,18 +94,20 @@ async def safe_edit(bot, chat_id, message_id, text, **kw):
         return await bot.edit_message_text(chat_id=chat_id, message_id=message_id, text=text, **kw)
 
 
-router = Router()
+
 @router.message(F.photo & F.caption)
 async def on_photo(message: types.Message):
-    # используем уже существующую функцию
+    if not await _gatekeep_message(message):
+        return
     await handle_photo_command(message)
 
 @router.message()
 async def on_text(message: types.Message):
-    # фильтры такие же, как были в bot.py
     if not getattr(message, "text", None):
         return
     if getattr(message.from_user, "is_bot", False):
+        return
+    if not await _gatekeep_message(message):
         return
     await handle_message(message)
 
@@ -784,6 +788,81 @@ async def handle_message(message: types.Message):
 
             await message.reply("КД концерта и выступления сброшены. Выбирайте нового певца.")
             return
+
+        @router.message(F.text.regexp(r"^перки\s+лимит\s+(\S+)\s+(\d+)$", flags=re.I))
+        async def handle_perk_limit(message: types.Message, regexp: re.Match):
+            if not await is_curator(message.from_user.id):
+                return
+            code = regexp.group(1).strip().lower()
+            n = int(regexp.group(2))
+            await set_perk_cap(code, n)
+            caps = await get_perk_caps()
+            left = await get_perk_primary_left(code)
+            await safe_reply(message, f"Лимит для перка «{code}» установлен: {n}. Доступно на рынке сейчас: {left}.")
+
+        @router.message(F.text.lower() == "армагеддон вкл")
+        async def cmd_armageddon_on(message: types.Message):
+            if not await is_curator(message.from_user.id): return
+            await set_armageddon(True)
+            await safe_reply(message, "☢️ Режим АРМАГЕДДОН: включён. Каждое сообщение стоит 1 нуар.")
+
+        @router.message(F.text.lower() == "армагеддон выкл")
+        async def cmd_armageddon_off(message: types.Message):
+            if not await is_curator(message.from_user.id): return
+            await set_armageddon(False)
+            await safe_reply(message, "☮️ Режим АРМАГЕДДОН: выключён.")
+
+        @router.message(F.reply_to_message, F.text.lower() == "черная метка")
+        async def cmd_black_mark(message: types.Message):
+            if not await is_curator(message.from_user.id): return
+            uid = message.reply_to_message.from_user.id
+            # 1) забрать всё в саплай/сейф (НЕ сжигать)
+            bal = await get_balance(uid) or 0
+            if bal > 0:
+                await change_balance(uid, -bal, "чс", message.from_user.id)   # уменьшит circulating, увеличит сейф
+            # ячейка → в сейф (переводом), перки снять и уменьшить minted:
+            perks = await get_perks(uid)
+            for code in perks:
+                await remove_perk(uid, code)          # твой существующий хелпер
+                await add_perk_minted(code, -1)
+            await reset_roles(uid)
+            await reset_generosity(uid)
+            await bank_force_withdraw_all_to_vault(uid)  # принудительно забрать из ячейки в сейф
+            await add_to_blacklist(uid)
+            await safe_reply(message, "Вручена чёрная метка. Игрок исключён из Клуба.")
+
+        @router.message(F.reply_to_message, F.text.lower() == "белая метка")
+        async def cmd_white_mark(message: types.Message):
+            if not await is_curator(message.from_user.id): return
+            uid = message.reply_to_message.from_user.id
+            await remove_from_blacklist(uid)
+            await safe_reply(message, "Метка снята. Игрок снова в Клубе.")
+
+        @router.message(F.text.lower() == "подмести клуб")
+        async def cmd_cleanup_leavers(message: types.Message):
+            if not await is_curator(message.from_user.id): return
+            cleaned = 0
+            for uid in await list_all_user_ids():
+                try:
+                    m = await message.bot.get_chat_member(message.chat.id, uid)
+                    if m.status in ("left","kicked"):
+                        raise Exception("left")
+                except Exception:
+                    # обнуляем как в чёрной метке, но без добавления в ЧС
+                    bal = await get_balance(uid) or 0
+                    if bal > 0:
+                        await change_balance(uid, -bal, "clean", message.from_user.id)
+                    perks = await get_perks(uid)
+                    for code in perks:
+                        await remove_perk(uid, code)
+                        await add_perk_minted(code, -1)
+                    await reset_roles(uid)
+                    await reset_generosity(uid)
+                    await bank_force_withdraw_all_to_vault(uid)
+                    cleaned += 1
+            await safe_reply(message, f"Почищено за {cleaned} гостями.")
+
+
 
 
 
@@ -1526,6 +1605,12 @@ async def handle_grant_perk_universal(message: types.Message, code: str):
     if code in perks:
         await safe_reply(message,f"У {mention_html(target.id, target.full_name)} уже есть «{title}».", parse_mode="HTML")
         return
+    left = await get_perk_primary_left(code)
+    if left <= 0:
+        await safe_reply(message, "Невозможно выдать: перки закончились.")
+        return
+    # успех:
+    await add_perk_minted(code, +1)
     await grant_perk(target.id, code)
     await safe_reply(message,f"Перк «{title}» дарован {mention_html(target.id, target.full_name)}.", parse_mode="HTML")
 
@@ -1541,6 +1626,9 @@ async def handle_revoke_perk_universal(message: types.Message, code: str):
         return
     # снимаем активный перк
     await revoke_perk(target.id, code)
+    # ... после того как перк реально снят с пользователя/уничтожен:
+    await add_perk_minted(code, -1)
+
 
     # если есть ваучер — сразу активируем один (автоподмена)
     credits = await get_perk_credits(target.id, code)
@@ -1633,12 +1721,12 @@ async def handle_stipend_claim(message: types.Message):
         roll = random.randint(1, 100)  # 1..100
         sb = await get_stipend_bonus()  # именно от надбавки
         if roll <= 20:
-            premium_bonus = int(sb * 2.0)
-            premium_note = "🏅 Премия ×2"
+            premium_bonus = int(sb * 3.0)
+            premium_note = "🏅 Премия ×3"
         elif roll <= 70:
             premium_bonus = int(sb * 1.0)
             premium_note = "🏅 Премия ×1"
-        elif roll <= 80:
+        elif roll <= 85:
             premium_bonus = int(sb * 0.5)
             premium_note = "🏅 Премия ×0.5"
         else:
@@ -1765,14 +1853,15 @@ async def handle_market_show(message: types.Message):
             elif code == "везунчик":
                 usage = f"шанс попасть под чужой дождь: {lucky}%"
             elif code == "премия":
-                usage = "модель премии: 20%×2 | 50%×1 | 10%×0.5 | 20%×0"
+                usage = "модель премии: 20%×3 | 50%×1 | 15%×0.5 | 15%×0"
             elif code == "грабитель":
                 usage = "КАВАБАНГА!!!"
             else:
                 usage = "—"
 
+            left = await get_perk_primary_left(code)
             perk_blocks.append(
-                f"{emoji} перк <b>{name}</b>\n"
+                f"Перк <b>«{name}»</b> {emoji} ({left}/{(await get_perk_caps()).get(code, 0)})\n"
                 f"<b>Цена:</b> {price_str}\n"
                 f"<b>Описание:</b> {usage}"
             )
@@ -2091,6 +2180,13 @@ async def handle_buy_perk(message: types.Message, code: str):
     if burn > 0:
         await record_burn(burn, f"perk={code}")
     # выдаём перк
+    left = await get_perk_primary_left(code)
+    if left <= 0:
+        await safe_reply(message, "Этот перк распродан на первичном рынке (0/10). Ищите на вторичке.")
+        return
+
+    # ... успешная покупка:
+    await add_perk_minted(code, +1)        
     await grant_perk(buyer_id, code)
 
     # чек
@@ -2344,6 +2440,7 @@ async def handle_commands_curator(message: types.Message):
             "филантроп шанс <P> — шанс подарка шестому при дожде",
             "везунчик шанс <P> — шанс автопопадания в дождь",
             "грабитель кд <дней> - кд перка грабитель",
+            "перки лимит <код> <N> - лимит перков"
         ]),
         ("🎭 Роли и ключи", [
             "назначить \"Роль\" описание (reply) / снять роль (reply)",
@@ -2351,7 +2448,11 @@ async def handle_commands_curator(message: types.Message):
         ]),
         ("🧹 Сбросы/служебные", [
             "обнулить баланс (reply) / обнулить балансы / обнулить клуб",
-            "концерт перевыбор - обнуление кд концерта и выступления"
+            "концерт перевыбор - обнуление кд концерта и выступления",
+            "армагеддон вкл/выкл - включает и выключает платный режим в чате",
+            "подмести клуб - обнуляет покинувших чат",
+            "черная метка(reply) - чс бота",
+            "белая метка(reply) - убирает из чс бота"
         ]),
         ("🎁 Щедрость", [
             "щедрость множитель <p>% / щедрость награда <N>",
