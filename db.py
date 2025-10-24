@@ -1043,6 +1043,24 @@ async def remove_from_blacklist(uid: int) -> None:
     ids.discard(int(uid))
     await _set_json_cfg(CFG_BLACKLIST, {"ids": list(ids)})
 
+# --- string config helpers (нужны для JSON-конфигов) ---
+async def get_config_str(key: str, default: str = "") -> str:
+    # если у тебя уже есть get_config/set_config — используем их
+    try:
+        val = await get_config(key)  # общий геттер, должен вернуть str|None
+    except NameError:
+        # fallback на int-геттеры тут не годится — нам нужно строковое значение
+        # Если у тебя нет get_config(), ПОКА оставь так — и скажи, я дам SQL-обёртки под твою схему.
+        val = None
+    return val if val is not None else default
+
+async def set_config_str(key: str, value: str) -> None:
+    try:
+        await set_config(key, str(value))  # общий сеттер
+    except NameError:
+        # как и выше, если нет set_config(), скажи — дам точные SQL под твою таблицу config
+        raise
+
 
 async def _get_json_cfg(key: str) -> dict:
     import json
