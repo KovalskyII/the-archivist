@@ -1597,13 +1597,13 @@ async def handle_perk_registry(message: types.Message):
         await message.reply("Пока никто не получал перков.")
         return
 
-    lines = ["Сводка по перкам:"]
+    lines = ["<b>Сводка по перкам:</b>"]
     for code, cnt in summary:
         emoji, title = PERK_REGISTRY.get(code, ("", code))
         nice = f"{emoji} {title}".strip()
         lines.append(f"• {nice} — {cnt}")
 
-    await safe_reply(message,"\n".join(lines))
+    await safe_reply(message,"\n".join(lines), parse_mode="HTML")
 
 
 async def handle_stipend_claim(message: types.Message):
@@ -2168,13 +2168,12 @@ async def handle_vault_stats(message: types.Message):
     supply_s      = fmt_int(supply)
     circulating_s = fmt_int(circulating)
     burned_s      = fmt_int(burned)
-    vault_free_s  = fmt_money(vault_free)
-    bank_total_s  = fmt_money(bank_total)
+    vault_free_s  = fmt_int(vault_free)
+    bank_total_s  = fmt_int(bank_total)
     bps_pct       = fmt_percent_bps(burn_bps)
     base_s        = fmt_money(base)
-    # bonus/theft — по желанию, если выводишь ниже
-      
 
+      
     txt = (
         "🏦 <b>ЭКОНОМИКА КЛУБА</b> 🏦\n"
         f"начальный саплай: {cap_s}\n\n"
@@ -2189,8 +2188,6 @@ async def handle_vault_stats(message: types.Message):
         f"💼 <b>Жалование:</b> {base_s}\n"
     )
     await safe_reply(message, txt, parse_mode="HTML")
-
-
 
 
 # --------- конфиги сеттеры ---------
@@ -2647,7 +2644,7 @@ async def handle_bank_summary_cmd(message: types.Message):
     dep = await get_cell_dep_fee_pct()
     stor = await get_cell_stor_fee_pct()
     await safe_reply(message,
-        "🏛 <b>БАНК</b>\n\n"
+        "🏛 <b>БАНК</b> 🏛\n\n"
         f"🗄 <b>Общий баланс ячеек:</b> {fmt_money(total)}\n"
         f"💰 <b>Комиссия пополнения:</b> {dep}%\n"
         f"💰 <b>Комиссия хранения:</b> {stor}% / 6ч",
