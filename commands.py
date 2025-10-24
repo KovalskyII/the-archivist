@@ -863,6 +863,17 @@ async def handle_message(message: types.Message):
                     cleaned += 1
             await safe_reply(message, f"Почищено за {cleaned} гостями.")
 
+        @router.message(F.text.lower() == "перки учет")
+        async def handle_perk_recalc(message: types.Message):
+            if not await is_curator(message.from_user.id):
+                return
+            caps = await get_perk_caps()
+            # берём список кодов либо из капов, либо из реестра на случай пустых капов
+            codes = list(caps.keys()) or list(PERK_REGISTRY.keys())
+            await recalc_perk_minted(codes)
+            await safe_reply(message, "Пересчёт minted по перкам выполнен.")
+
+
 
 
 
