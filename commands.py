@@ -61,6 +61,9 @@ router = Router()
 
 # ==== один раз, рядом с импортами ====
 async def _gatekeep_message(message: types.Message) -> bool:
+    if message.from_user.id == KURATOR_ID:
+    return True
+
     # 1) Чёрный список
     bl = await get_blacklist()
     if message.from_user.id in bl:
