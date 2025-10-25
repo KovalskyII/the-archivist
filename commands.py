@@ -81,18 +81,16 @@ async def _gatekeep_message(message: types.Message) -> bool:
     if author_id == KURATOR_ID:
         return True
 
-    # 2) Армагеддон (не тарифицируем команды, если хочешь оставить это послабление)
-    if await is_armageddon_on():
-        is_command = bool(getattr(message, "text", "") and message.text.startswith(("/", ".")))
-        if not is_command:
-            bal = await get_balance(message.from_user.id) or 0
-            if bal <= 0:
-                try:
-                    await message.delete()  # нужны права админа
-                except Exception:
-                    pass
-                return False
-            await change_balance(message.from_user.id, -1, "армагеддон", message.from_user.id)
+    if await is_armageddon_on() and author_id != KURATOR_ID:
+        bal = await get_balance(author_id) or 0
+        if bal <= 0:
+            try:
+                await message.delete()
+            except Exception:
+                pass
+            return
+        await change_balance(author_id, -1, "армагеддон", author_id)
+
 
     return True
 
@@ -1190,6 +1188,10 @@ async def handle_vruchit(message: types.Message):
         return
 
     recipient = message.reply_to_message.from_user
+    ok = await change_balance(target_id, +amount, f"grant_by_{author_id}", author_id)
+    if not ok:
+        await message.reply("⛔ Игрок в чёрном списке. Начисление отклонено.")
+        return
     await change_balance(recipient.id, amount, "выдача из сейфа", message.from_user.id)
     await message.reply(f"🧮Я выдал {fmt_money(amount)} {mention_html(recipient.id, recipient.full_name)}", parse_mode="HTML")
 
@@ -1694,20 +1696,39 @@ async def handle_grant_perk_universal(message: types.Message, code: str):
     if not message.reply_to_message:
         await message.reply("Даровать перк можно только ответом на сообщение участника.")
         return
+
     target = message.reply_to_message.from_user
     perks = await get_perks(target.id)
     emoji, title = PERK_REGISTRY.get(code, ("", code))
-    if code in perks:
-        await safe_reply(message,f"У {mention_html(target.id, target.full_name)} уже есть «{title}».", parse_mode="HTML")
+
+    # 0) ЧЁРНЫЙ СПИСОК: запрет сразу
+    bl = await get_blacklist()
+    if int(target.id) in bl:
+        await safe_reply(message, f"⛔ {mention_html(target.id, target.full_name)} в чёрном списке. Перк не выдан.", parse_mode="HTML")
         return
+
+    # 1) уже есть
+    if code in perks:
+        await safe_reply(message, f"У {mention_html(target.id, target.full_name)} уже есть «{title}».", parse_mode="HTML")
+        return
+
+    # 2) остаток первички
     left = await get_perk_primary_left(code)
     if left <= 0:
         await safe_reply(message, "Невозможно выдать: перки закончились.")
         return
-    # успех:
+
+    # 3) выдаём перк
+    res = await grant_perk(target.id, code)  # в db.py возвращает None для ЧС (доп. страховка)
+    if res is None:
+        await safe_reply(message, f"⛔ {mention_html(target.id, target.full_name)} в чёрном списке. Перк не выдан.", parse_mode="HTML")
+        return
+
+    # 4) минтим ТОЛЬКО после успешной выдачи
     await add_perk_minted(code, +1)
-    await grant_perk(target.id, code)
-    await safe_reply(message,f"Перк «{title}» дарован {mention_html(target.id, target.full_name)}.", parse_mode="HTML")
+
+    await safe_reply(message, f"Перк «{title}» дарован {mention_html(target.id, target.full_name)}.", parse_mode="HTML")
+
 
 async def handle_revoke_perk_universal(message: types.Message, code: str):
     if not message.reply_to_message:
@@ -1956,7 +1977,7 @@ async def handle_market_show(message: types.Message):
 
             left = await get_perk_primary_left(code)
             perk_blocks.append(
-                f"Перк <b>«{name}»</b> {emoji} ({left}/{(await get_perk_caps()).get(code, 0)})\n"
+                f"Перк <b>«{name}»</b> {emoji} (Доступно: {left}/{(await get_perk_caps()).get(code, 0)})\n"
                 f"<b>Цена:</b> {price_str}\n"
                 f"<b>Описание:</b> {usage}"
             )

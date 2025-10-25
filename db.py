@@ -141,7 +141,8 @@ async def change_balance(user_id: int, amount: int, reason: str, author_id: int)
                 (user_id, amount, reason)
             )
             await db.commit()
-            return
+            return False
+
 
         async with db.execute("SELECT balance FROM users WHERE user_id = ?", (user_id,)) as cur:
             row = await cur.fetchone()
@@ -155,6 +156,7 @@ async def change_balance(user_id: int, amount: int, reason: str, author_id: int)
             (user_id, amount, reason),
         )
         await db.commit()
+        return True
 
 async def reset_user_balance(user_id: int):
     async with aiosqlite.connect(DB_PATH) as db:
@@ -393,8 +395,14 @@ def _reason_get(reason: str | None, key: str) -> str | None:
     return None
 
 async def perk_credit_add(user_id: int, code: str):
+    bl = await get_blacklist()
+    if int(user_id) in bl:
+        # лог по желанию:
+        await insert_history(user_id, "blocked_blacklist", 0, f"perk_credit_add;code={_normalize_perk_code(code)}")
+        return
     code = _normalize_perk_code(code)
     await insert_history(user_id, "perk_credit_add", 1, f"code={code}")
+
 
 async def perk_credit_use(user_id: int, code: str) -> bool:
     code = _normalize_perk_code(code)
@@ -701,10 +709,7 @@ async def cell_deposit(user_id: int, gross_amount: int) -> tuple[int,int,int]:
     return gross_amount, fee, new_bal
 
 async def cell_withdraw(user_id: int, amount: int) -> tuple[int,int]:
-    """
-    Вывод из ячейки. Возврат: (выведено, новый_баланс_ячейки).
-    Деньги на карман зачисляешь в командах через change_balance.
-    """
+
     await cell_touch(user_id)
     bal = await _cell_calc_balance(user_id)
     take = min(max(0, amount), bal)
