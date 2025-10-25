@@ -541,7 +541,8 @@ async def handle_message(message: types.Message):
 
         if text_l == "армагеддон вкл":
             await set_armageddon(True)
-            status = await message.reply("☢️ Режим АРМАГЕДДОН: включён. Каждое сообщение стоит 1 нуар.")
+            price = await get_armageddon_price()
+            status = await message.reply(f"☢️ Режим АРМАГЕДДОН: включён. Цена слова:{price}.")
             await message.bot.pin_chat_message(
                 chat_id=message.chat.id,
                 message_id=status.message_id,
@@ -551,14 +552,19 @@ async def handle_message(message: types.Message):
 
         if text_l == "армагеддон выкл":
             await set_armageddon(False)
-            await message.reply("☮️ Режим АРМАГЕДДОН: выключён.")
+            status = await message.reply("☮️ Режим АРМАГЕДДОН: выключён.")
+            await message.bot.pin_chat_message(
+                chat_id=message.chat.id,
+                message_id=status.message_id,
+                disable_notification=True    # тихий пин
+            )
             return
 
         m = re.match(r"армагеддон\s+цена\s+(\d+)$", text_l)
         if m and message.from_user.id == KURATOR_ID:
             price = int(m.group(1))
             await set_armageddon_price(price)
-            await message.reply(f"Цена армагеддона установлена: {price} нуар(а).")
+            await message.reply(f"😈 Новая цена выживания в аду: {price}.")
             return
 
 
@@ -2580,6 +2586,7 @@ async def handle_commands_curator(message: types.Message):
             "обнулить баланс (reply) / обнулить балансы / обнулить клуб",
             "концерт перевыбор - обнуление кд концерта и выступления",
             "армагеддон вкл/выкл - включает и выключает платный режим в чате",
+            "армагеддон цена <N> - цена жизни в чате",
             "подмести клуб - обнуляет покинувших чат",
             "черная метка(reply) - чс бота",
             "белая метка(reply) - убирает из чс бота",
