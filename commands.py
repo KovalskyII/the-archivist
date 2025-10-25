@@ -84,7 +84,7 @@ async def _gatekeep_message(message: types.Message) -> bool:
     if await is_armageddon_on():
         txt = (message.text or "")
         is_command = bool(txt.startswith("/") or txt.startswith("."))
-        if not is_command:
+        if not is_command and uid != KURATOR_ID::
             bal = await get_balance(author_id) or 0
             if bal <= 0:
                 try:
@@ -218,17 +218,6 @@ async def handle_message(message: types.Message):
 
     if message.from_user.is_bot:
         return
-
-    if await is_armageddon_on() and author_id != KURATOR_ID:
-        bal = await get_balance(author_id) or 0
-        if bal <= 0:
-            try:
-                await message.delete()
-            except Exception:
-                pass
-            return
-        await change_balance(author_id, -1, "армагеддон", author_id)
-
 
     # --- ловушка для код-слова (только в целевом чате) ---
     if message.text and message.chat.id == CLUB_CHAT_ID:
