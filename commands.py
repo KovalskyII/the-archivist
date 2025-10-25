@@ -542,7 +542,7 @@ async def handle_message(message: types.Message):
         if text_l == "армагеддон вкл":
             await set_armageddon(True)
             price = await get_armageddon_price()
-            status = await message.reply(f"☢️ Режим АРМАГЕДДОН: включён. Цена слова:{price}.")
+            status = await message.reply(f"☢️ <b>Режим АРМАГЕДДОН: включён.</b> Цена слова: {price}.", parse_mode=HTML)
             await message.bot.pin_chat_message(
                 chat_id=message.chat.id,
                 message_id=status.message_id,
@@ -552,7 +552,7 @@ async def handle_message(message: types.Message):
 
         if text_l == "армагеддон выкл":
             await set_armageddon(False)
-            status = await message.reply("☮️ Режим АРМАГЕДДОН: выключён.")
+            status = await message.reply("☮️ <b>Режим АРМАГЕДДОН: выключён.</b>", parse_mode=HTML)
             await message.bot.pin_chat_message(
                 chat_id=message.chat.id,
                 message_id=status.message_id,
