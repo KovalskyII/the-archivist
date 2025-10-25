@@ -1989,6 +1989,8 @@ async def handle_market_show(message: types.Message):
                 usage = "модель премии: 20%×3 | 50%×1 | 15%×0.5 | 15%×0"
             elif code == "грабитель":
                 usage = "КАВАБАНГА!!!"
+            elif code == "корона":
+                usage = "я смог"
             else:
                 usage = "—"
 
