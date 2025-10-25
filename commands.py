@@ -12,7 +12,6 @@ import aiosqlite
 
 from aiogram import types
 from aiogram.types import FSInputFile
-from aiogram import Router, F
 
 
 

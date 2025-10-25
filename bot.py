@@ -10,7 +10,21 @@ from aiogram import Bot, Dispatcher
 import socket
 import aiohttp
 from aiogram.client.session.aiohttp import AiohttpSession
+from commands import handle_message, handle_photo_command
+from aiogram import Router, F, types
 
+router = Router()
+
+@router.message(F.photo & F.caption)
+async def _on_photo(message: types.Message):
+    await handle_photo_command(message)
+
+@router.message()
+async def _on_text(message: types.Message):
+    if not getattr(message, "text", None):
+        return
+    await handle_message(message)
+    
 
 load_dotenv()
 
@@ -33,7 +47,6 @@ def _stop(*_):
     stop_event.set()
 
 async def main():
-    import aiogram, logging
     logging.info(f"aiogram version: {aiogram.__version__}")
     # 1) токен и сессия
     token = os.getenv("BOT_TOKEN")
