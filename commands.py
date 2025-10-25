@@ -588,7 +588,7 @@ async def handle_message(message: types.Message):
                 await revoke_perk(uid, code)
                 await add_perk_minted(code, -1)
             await set_role(uid, None, None)
-            await bank_zero_all_and_sum(uid)
+            await bank_zero_all_and_sum()
             await add_to_blacklist(uid)
             await message.reply("Чёрная метка поставлена. Игрок исключён из Клуба.")
             return
@@ -613,7 +613,7 @@ async def handle_message(message: types.Message):
                         await revoke_perk(uid, code)
                         await add_perk_minted(code, -1)
                     await set_role(uid, None, None)
-                    await bank_zero_all_and_sum(uid)
+                    await bank_zero_all_and_sum()
                     cleaned += 1
             await message.reply(f"Очищено профилей: {cleaned}")
             return
