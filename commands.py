@@ -69,13 +69,17 @@ DB_PATH = "/data/bot_data.sqlite"
 
 # ==== один раз, рядом с импортами ====
 async def _gatekeep_message(message: types.Message) -> bool:
-    if message.from_user.id == KURATOR_ID:
-        return True
+    author_id = message.from_user.id
+    text = (message.text or "").strip().lower()
 
     # 1) Чёрный список
     bl = await get_blacklist()
-    if message.from_user.id in bl:
-        return False
+    if author_id in bl:
+        return False 
+        
+    # 2) Куратор — всегда можно
+    if author_id == KURATOR_ID:
+        return True
 
     # 2) Армагеддон (не тарифицируем команды, если хочешь оставить это послабление)
     if await is_armageddon_on():
