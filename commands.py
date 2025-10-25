@@ -190,6 +190,21 @@ async def handle_message(message: types.Message):
     from db import touch_user
     await touch_user(author_id, message.from_user.username)
 
+    is_cmd = text_l.startswith(("/", ".")) or (
+        author_id == KURATOR_ID and (
+            text_l in {"армагеддон вкл","армагеддон выкл","подмести клуб","черная метка","белая метка"}
+            or text_l.startswith("перки лимит ")
+        )
+    )
+    if await is_armageddon_on() and not is_cmd:
+        bal = await get_balance(author_id) or 0
+        if bal <= 0:
+            try: await message.delete()
+            except: pass
+            return
+        await change_balance(author_id, -1, "армагеддон", author_id)
+
+
     if message.from_user.is_bot:
         return
 
@@ -522,6 +537,74 @@ async def handle_message(message: types.Message):
 
     # ======= Команды только Куратора =======
     if author_id == KURATOR_ID:
+
+        if text_l == "армагеддон вкл":
+            await set_armagedдон(True)
+            await message.reply("☢️ Режим АРМАГЕДДОН: включён. Каждое сообщение стоит 1 нуар.")
+            return
+
+        if text_l == "армагеддон выкл":
+            await set_armagedдон(False)
+            await message.reply("☮️ Режим АРМАГЕДДОН: выключён.")
+            return
+
+        m = re.match(r"^перки\s+лимит\s+(\S+)\s+(\d+)$", text_l)
+        if m:
+            code = m.group(1).strip().lower()
+            n = int(m.group(2))
+            await set_perк_cap(code, n)
+            left = await get_perk_primary_left(code)
+            cap  = (await get_perk_caps()).get(code, 0)
+            await message.reply(f"Лимит для «{code}»: {cap}. Доступно на первичке: {left}.")
+            return
+
+        if text_l == "черная метка" and message.reply_to_message:
+            uid = message.reply_to_message.from_user.id
+            bal = await get_balance(uid) or 0
+            if bal > 0:
+                await change_balance(uid, -bal, "чс", author_id)
+            perks = await get_perks(uid)
+            for code in perks:
+                await revoke_perk(uid, code)
+                await add_perk_minted(code, -1)
+            await set_role(uid, None, None)
+            await bank_zero_all(uid)
+            await add_to_blacklist(uid)
+            await message.reply("Чёрная метка поставлена. Игрок исключён из игры.")
+            return
+
+        if text_l == "белая метка" and message.reply_to_message:
+            uid = message.reply_to_message.from_user.id
+            await remove_from_blacklist(uid)
+            await message.reply("Метка снята. Игрок снова виден боту (как новичок).")
+            return
+
+        if text_l == "подмести клуб":
+            cleaned = 0
+            for uid in await get_known_users():
+                try:
+                    mbr = await message.bot.get_chat_member(message.chat.id, uid)
+                    if mbr.status in ("left","kicked"): raise Exception("left")
+                except Exception:
+                    bal = await get_balance(uid) or 0
+                    if bal > 0:
+                        await change_balance(uid, -bal, "clean", author_id)
+                    for code in await get_perks(uid):
+                        await revoke_perk(uid, code)
+                        await add_perk_minted(code, -1)
+                    await set_role(uid, None, None)
+                    await bank_zero_all(uid)
+                    cleaned += 1
+            await message.reply(f"Очищено профилей: {cleaned}")
+            return
+
+        # вместо объявления внутренней функции — просто выполнить пересчёт и ответить
+        if text_l == "перки учет":
+            # пересчитать minted для всех зарегистрированных кодов перков
+            await recalc_perk_minted(list(PERK_REGISTRY.keys()))
+            await safe_reply(message, "📊 Учёт перков пересчитан.")
+            return
+
         if text_l.startswith("назначить ") and message.reply_to_message:
             await handle_naznachit(message)
             return
@@ -775,89 +858,6 @@ async def handle_message(message: types.Message):
 
             await message.reply("КД концерта и выступления сброшены. Выбирайте нового певца.")
             return
-
-        @router.message(F.text.regexp(r"^перки\s+лимит\s+(\S+)\s+(\d+)$", flags=re.I))
-        async def handle_perk_limit(message: types.Message, regexp: re.Match):
-            if not await is_curator(message.from_user.id):
-                return
-            code = regexp.group(1).strip().lower()
-            n = int(regexp.group(2))
-            await set_perk_cap(code, n)
-            caps = await get_perk_caps()
-            left = await get_perk_primary_left(code)
-            await safe_reply(message, f"Лимит для перка «{code}» установлен: {n}. Доступно на рынке сейчас: {left}.")
-
-        @router.message(F.text.regexp(r"^армагеддон вкл$", flags=re.I))
-        async def cmd_armageddon_on(message: types.Message):
-            if not await is_curator(message.from_user.id): return
-            await set_armageddon(True)
-            await safe_reply(message, "☢️ Режим АРМАГЕДДОН: включён. Каждое сообщение стоит 1 нуар.")
-
-        @router.message(F.text.regexp(r"^армагеддон выкл$", flags=re.I))
-        async def cmd_armageddon_off(message: types.Message):
-            if not await is_curator(message.from_user.id): return
-            await set_armageddon(False)
-            await safe_reply(message, "☮️ Режим АРМАГЕДДОН: выключён.")
-
-        @router.message(F.reply_to_message, F.text.regexp(r"^черная метка$", flags=re.I))
-        async def cmd_black_mark(message: types.Message):
-            if not await is_curator(message.from_user.id): return
-            uid = message.reply_to_message.from_user.id
-            # 1) забрать всё в саплай/сейф (НЕ сжигать)
-            bal = await get_balance(uid) or 0
-            if bal > 0:
-                await change_balance(uid, -bal, "чс", message.from_user.id)   # уменьшит circulating, увеличит сейф
-            # ячейка → в сейф (переводом), перки снять и уменьшить minted:
-            perks = await get_perks(uid)
-            for code in perks:
-                await remove_perk(uid, code)          # твой существующий хелпер
-                await add_perk_minted(code, -1)
-            await reset_roles(uid)
-            await reset_generosity(uid)
-            await bank_force_withdraw_all_to_vault(uid)  # принудительно забрать из ячейки в сейф
-            await add_to_blacklist(uid)
-            await safe_reply(message, "Вручена чёрная метка. Игрок исключён из Клуба.")
-
-        @router.message(F.reply_to_message, F.text.regexp(r"^белая метка$", flags=re.I))
-        async def cmd_white_mark(message: types.Message):
-            if not await is_curator(message.from_user.id): return
-            uid = message.reply_to_message.from_user.id
-            await remove_from_blacklist(uid)
-            await safe_reply(message, "Метка снята. Игрок снова в Клубе.")
-
-        @router.message(F.text.regexp(r"^подмести клуб$", flags=re.I))
-        async def cmd_cleanup_leavers(message: types.Message):
-            if not await is_curator(message.from_user.id): return
-            cleaned = 0
-            for uid in await list_all_user_ids():
-                try:
-                    m = await message.bot.get_chat_member(message.chat.id, uid)
-                    if m.status in ("left","kicked"):
-                        raise Exception("left")
-                except Exception:
-                    # обнуляем как в чёрной метке, но без добавления в ЧС
-                    bal = await get_balance(uid) or 0
-                    if bal > 0:
-                        await change_balance(uid, -bal, "clean", message.from_user.id)
-                    perks = await get_perks(uid)
-                    for code in perks:
-                        await remove_perk(uid, code)
-                        await add_perk_minted(code, -1)
-                    await reset_roles(uid)
-                    await reset_generosity(uid)
-                    await bank_force_withdraw_all_to_vault(uid)
-                    cleaned += 1
-            await safe_reply(message, f"Почищено за {cleaned} гостями.")
-
-        @router.message(F.text.lower() == "перки учет")
-        async def handle_perk_recalc(message: types.Message):
-            if not await is_curator(message.from_user.id):
-                return
-            caps = await get_perk_caps()
-            # берём список кодов либо из капов, либо из реестра на случай пустых капов
-            codes = list(caps.keys()) or list(PERK_REGISTRY.keys())
-            await recalc_perk_minted(codes)
-            await safe_reply(message, "Пересчёт minted по перкам выполнен.")
 
 
 
@@ -2439,6 +2439,7 @@ async def handle_commands_curator(message: types.Message):
             "везунчик шанс <P> — шанс автопопадания в дождь",
             "грабитель кд <дней> - кд перка грабитель",
             "перки лимит <код> <N> - лимит перков"
+            "перки учет - первичный пересчет лимитов"
         ]),
         ("🎭 Роли и ключи", [
             "назначить \"Роль\" описание (reply) / снять роль (reply)",
