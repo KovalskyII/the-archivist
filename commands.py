@@ -58,6 +58,13 @@ from db import (
 from aiolimiter import AsyncLimiter
 
 tg_limiter = AsyncLimiter(28, 1)  # ~28 запросов/сек
+KURATOR_ID = 164059195
+CLUB_CHAT_ID = -1002431055065
+ALLOWED_CONCERT_CHATS = {CLUB_CHAT_ID}
+
+DB_PATH = "/data/bot_data.sqlite"
+
+
 
 # ==== один раз, рядом с импортами ====
 async def _gatekeep_message(message: types.Message) -> bool:
@@ -100,12 +107,6 @@ async def safe_edit(bot, chat_id, message_id, text, **kw):
 
 
 
-
-KURATOR_ID = 164059195
-CLUB_CHAT_ID = -1002431055065
-ALLOWED_CONCERT_CHATS = {CLUB_CHAT_ID}
-
-DB_PATH = "/data/bot_data.sqlite"
 
 
 
