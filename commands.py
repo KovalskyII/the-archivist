@@ -2192,17 +2192,19 @@ async def handle_buy_perk(message: types.Message, code: str):
     if price > bal:
         await message.reply(f"Недостаточно нуаров. Требуется {fmt_money(price)}, на руках {fmt_money(bal)}.")
         return
+        
+    # выдаём перк
+    left = await get_perk_primary_left(code)
+    if left <= 0:
+        await safe_reply(message, "Этот перк распродан на первичном рынке (0/10). Ищите на вторичке.")
+        return
 
     burn = await _apply_burn_and_return(price)
     # списываем у покупателя
     await change_balance(buyer_id, -price, f"покупка перка {code}", buyer_id)
     if burn > 0:
         await record_burn(burn, f"perk={code}")
-    # выдаём перк
-    left = await get_perk_primary_left(code)
-    if left <= 0:
-        await safe_reply(message, "Этот перк распродан на первичном рынке (0/10). Ищите на вторичке.")
-        return
+
 
     # ... успешная покупка:
     await add_perk_minted(code, +1)        

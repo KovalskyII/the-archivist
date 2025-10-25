@@ -44,6 +44,8 @@ CFG_BRAVO_WINDOW_SEC   = "bravo_window_sec"   # дефолт 600
 CFG_BRAVO_MAX_VIEWERS  = "bravo_max_viewers"  # дефолт 10
 CFG_PIN_Q_MULT         = "pin_q_mult"         # дефолт 9 (тихий = bonus * 9)
 
+CFG_PERK_VOUCHERS = "perk_vouchers_json"  # {"кража": 3, "щит": 1, ...}
+
 
 # ------- базовая инициализация/проверка -------
 
