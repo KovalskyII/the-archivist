@@ -132,16 +132,10 @@ async def change_balance(user_id: int, amount: int, reason: str, author_id: int)
                 WHERE action='config_str:blacklist' ORDER BY id DESC LIMIT 1
             """) as cur:
                 row = await cur.fetchone()
-        bl = set()
-        if row and row[0]:
-            try:
-                import json
-                bl = set(json.loads(row[0]).get("value", []))
-            except Exception:
-                bl = set()
 
+        # Запрет начислений чёрному списку
+        bl = await get_blacklist()
         if amount > 0 and int(user_id) in bl:
-            # логируем блокировку (не меняя баланс)
             await db.execute(
                 "INSERT INTO history (user_id, action, amount, reason) VALUES (?, 'blocked_blacklist', ?, ?)",
                 (user_id, amount, reason)
@@ -178,21 +172,8 @@ async def reset_all_balances():
 # ------- роли -------
 
 async def set_role(user_id: int, role_name: str | None, role_desc: str | None):
-    # запрет ролей чёрному списку
-    async with aiosqlite.connect(DB_PATH) as _db_bl:
-        async with _db_bl.execute("""
-            SELECT reason FROM history
-            WHERE action='config_str:blacklist' ORDER BY id DESC LIMIT 1
-        """) as cur:
-            row = await cur.fetchone()
-    bl = set()
-    if row and row[0]:
-        try:
-            import json
-            bl = set(json.loads(row[0]).get("value", []))
-        except Exception:
-            bl = set()
-    if user_id in bl:
+    bl = await get_blacklist()
+    if int(user_id) in bl:
         return
 
     async with aiosqlite.connect(DB_PATH) as db:
@@ -290,6 +271,28 @@ async def get_known_users() -> list[int]:
             rows = await cur.fetchall()
             return [r[0] for r in rows]
 
+
+# --- "память" подметания клуба ---
+CLEANED_USERS_KEY = "cleaned_users"
+
+async def get_cleaned_users() -> set[int]:
+    data = await get_config_str(CLEANED_USERS_KEY)  # вернёт {"value": "..."} или None
+    try:
+        import json
+        if data and "value" in data:
+            arr = json.loads(data["value"])
+            return set(int(x) for x in arr)
+    except Exception:
+        pass
+    return set()
+
+async def set_cleaned_users(uids: set[int]) -> None:
+    import json
+    payload = json.dumps(sorted(int(x) for x in uids), ensure_ascii=False)
+    await set_config_str(CLEANED_USERS_KEY, payload)
+
+
+
 # ------- перки через history -------
 
 # ==== LEGACY ALIASES FOR PERK CODES ====
@@ -305,20 +308,7 @@ def _normalize_perk_code(code: str) -> str:
 
 async def grant_perk(user_id: int, perk_code: str):
     perk_code = _normalize_perk_code(perk_code)
-    # нельзя выдавать перки чёрному списку
-    async with aiosqlite.connect(DB_PATH) as db:
-        async with db.execute("""
-            SELECT reason FROM history
-            WHERE action='config_str:blacklist' ORDER BY id DESC LIMIT 1
-        """) as cur:
-            row = await cur.fetchone()
-    bl = set()
-    if row and row[0]:
-        try:
-            import json
-            bl = set(json.loads(row[0]).get("value", []))
-        except Exception:
-            bl = set()
+    bl = await get_blacklist()
     if int(user_id) in bl:
         return None
     return await insert_history(user_id, "perk_grant", None, perk_code)
