@@ -122,18 +122,10 @@ async def ensure_user(db, user_id: int):
         if await cur.fetchone() is None:
             await db.execute("INSERT INTO users (user_id, username, balance, key) VALUES (?, NULL, 0, 0)", (user_id,))
 
-async def change_balance(user_id: int, amount: int, reason: str, author_id: int):
+async def change_balance(user_id: int, amount: int, reason: str, author_id: int) -> bool:
     async with aiosqlite.connect(DB_PATH) as db:
         await ensure_user(db, user_id)
-        # Запрет начислений чёрному списку
-        async with aiosqlite.connect(DB_PATH) as _db_bl:
-            async with _db_bl.execute("""
-                SELECT reason FROM history
-                WHERE action='config_str:blacklist' ORDER BY id DESC LIMIT 1
-            """) as cur:
-                row = await cur.fetchone()
 
-        # Запрет начислений чёрному списку
         bl = await get_blacklist()
         if amount > 0 and int(user_id) in bl:
             await db.execute(
@@ -143,10 +135,9 @@ async def change_balance(user_id: int, amount: int, reason: str, author_id: int)
             await db.commit()
             return False
 
-
         async with db.execute("SELECT balance FROM users WHERE user_id = ?", (user_id,)) as cur:
             row = await cur.fetchone()
-            current_balance = row[0]
+            current_balance = (row[0] if row else 0)
         new_balance = current_balance + amount
         if new_balance < 0:
             new_balance = 0
@@ -157,6 +148,7 @@ async def change_balance(user_id: int, amount: int, reason: str, author_id: int)
         )
         await db.commit()
         return True
+
 
 async def reset_user_balance(user_id: int):
     async with aiosqlite.connect(DB_PATH) as db:
@@ -278,20 +270,19 @@ async def get_known_users() -> list[int]:
 CLEANED_USERS_KEY = "cleaned_users"
 
 async def get_cleaned_users() -> set[int]:
-    data = await get_config_str(CLEANED_USERS_KEY)  # вернёт {"value": "..."} или None
+    s = await get_config_str(CLEANED_USERS_KEY, "[]")
     try:
         import json
-        if data and "value" in data:
-            arr = json.loads(data["value"])
-            return set(int(x) for x in arr)
+        arr = json.loads(s) if s else []
+        return set(int(x) for x in arr)
     except Exception:
-        pass
-    return set()
+        return set()
 
 async def set_cleaned_users(uids: set[int]) -> None:
     import json
     payload = json.dumps(sorted(int(x) for x in uids), ensure_ascii=False)
     await set_config_str(CLEANED_USERS_KEY, payload)
+
 
 
 

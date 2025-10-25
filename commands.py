@@ -70,29 +70,31 @@ DB_PATH = "/data/bot_data.sqlite"
 # ==== один раз, рядом с импортами ====
 async def _gatekeep_message(message: types.Message) -> bool:
     author_id = message.from_user.id
-    text = (message.text or "").strip().lower()
 
-    # 1) Чёрный список
-    bl = await get_blacklist()
-    if author_id in bl:
-        return False 
-
-    # 2) Куратор — всегда можно
+    # 1) Куратор — всегда можно
     if author_id == KURATOR_ID:
         return True
 
-    if await is_armageddon_on() and author_id != KURATOR_ID:
-        bal = await get_balance(author_id) or 0
-        if bal <= 0:
-            try:
-                await message.delete()
-            except Exception:
-                pass
-            return
-        await change_balance(author_id, -1, "армагеддон", author_id)
+    # 2) Чёрный список — глобальный бан
+    bl = await get_blacklist()
+    if author_id in bl:
+        return False
 
-
+    # 3) Армагеддон: тарифуем только НЕ-команды
+    if await is_armageddon_on():
+        txt = (message.text or "")
+        is_command = bool(txt.startswith("/") or txt.startswith("."))
+        if not is_command:
+            bal = await get_balance(author_id) or 0
+            if bal <= 0:
+                try:
+                    await message.delete()
+                except Exception:
+                    pass
+                return False
+            await change_balance(author_id, -1, "армагеддон", author_id)
     return True
+
 
 
 async def safe_reply(message, text, **kw):
@@ -631,58 +633,64 @@ async def handle_message(message: types.Message):
 
 
         if text_l == "подмести клуб":
-            bl = await get_blacklist()                 # ЧС не трогаем (по ТЗ)
-            cleaned_mem = await get_cleaned_users()    # память прошлых чисток
+            cleaned = 0
+            cleaned_users = set(await get_cleaned_users() or [])
+            names = []
 
-            cleaned_now = []
             for uid in await get_known_users():
-                # если участник вернулся в чат — выкидываем его из памяти
+                # пропускаем уже почищенных
+                if uid in cleaned_users:
+                    continue
                 try:
-                    cm = await message.bot.get_chat_member(message.chat.id, uid)
-                    if cm.status in ("member", "administrator", "creator"):
-                        if uid in cleaned_mem:
-                            cleaned_mem.discard(uid)
-                        continue
+                    mbr = await message.bot.get_chat_member(message.chat.id, uid)
+                    if mbr.status not in ("left", "kicked"):
+                        continue  # в клубе — не трогаем
+                except Exception:
+                    # нет инфы — считаем как выбыл
+                    pass
+
+                any_change = False
+
+                # баланс кармана
+                bal = await get_balance(uid) or 0
+                if bal > 0:
+                    ok = await change_balance(uid, -bal, "clean", author_id)
+                    any_change = any_change or ok
+
+                # перки
+                user_perks = await get_perks(uid)
+                for code in list(user_perks):
+                    await revoke_perk(uid, code)
+                    await add_perk_minted(code, -1)
+                    any_change = True
+
+                # роль
+                await set_role(uid, None, None)
+
+                # банк (обнуление ячейки конкретного пользователя)
+                try:
+                    taken = await bank_zero_user(uid)
+                    if taken > 0:
+                        any_change = True
                 except Exception:
                     pass
 
-                # ушёл/кикнут — чистим, но НЕ добавляем в ЧС
-                if uid in bl:
-                    # чёрных не трогаем тут
-                    continue
-
-                # обнуляем всё «как чёрная метка», но БЕЗ занесения в ЧС
-                bal = await get_balance(uid) or 0
-                if bal > 0:
-                    await change_balance(uid, -bal, "clean", author_id)
-
-                for code in await get_perks(uid):
-                    await revoke_perk(uid, code)
-                    await add_perk_minted(code, -1)
-
-                await set_role(uid, None, None)
-                await bank_zero_user(uid)
-
-                cleaned_now.append(uid)
-                cleaned_mem.add(uid)
-
-            # сохранить память
-            await set_cleaned_users(set(cleaned_mem))
-
-            # вывод: кого Почистили именно СЕЙЧАС
-            if cleaned_now:
-                names = []
-                for uid in cleaned_now[:10]:
+                if any_change:
+                    cleaned += 1
+                    cleaned_users.add(uid)
                     try:
-                        cm = await message.bot.get_chat_member(message.chat.id, uid)
-                        names.append(cm.user.full_name or f"@{getattr(cm.user, 'username', '')}" or str(uid))
+                        name = mbr.user.full_name if mbr and mbr.user else str(uid)
                     except Exception:
-                        names.append(str(uid))
-                more = " …" if len(cleaned_now) > 10 else ""
-                await message.reply(f"Очищено профилей: {len(cleaned_now)}\nКого: {', '.join(names)}{more}")
+                        name = str(uid)
+                    names.append(name)
+
+            await set_cleaned_users(sorted(cleaned_users))
+            if cleaned > 0:
+                await message.reply(f"Очищено профилей: {cleaned}\n" + "\n".join(f"• {n}" for n in names))
             else:
-                await message.reply("Очищать некого.")
+                await message.reply("Новых профилей к очистке не найдено.")
             return
+
 
 
 
@@ -966,6 +974,13 @@ async def handle_naznachit(message: types.Message):
     if not message.reply_to_message:
         await message.reply('Нужно ответить на сообщение участника. Формат: назначить "Роль" Описание')
         return
+        
+    # ЧС: нельзя даровать
+    bl = await get_blacklist()
+    if int(target.id) in bl:
+        await safe_reply(message, f"{mention_html(target.id, target.full_name)} в чёрном списке. Дар выдачей запрещён.", parse_mode="HTML")
+        return
+
 
     # Парсим ИЗ ОРИГИНАЛЬНОГО ТЕКСТА, без lower(), чтобы не сломать регистр/символы роли и описания
     raw = (message.text or "").strip()
