@@ -5,7 +5,6 @@ import signal
 from dotenv import load_dotenv
 from aiohttp import web
 from db import init_db
-from commands import router 
 import aiogram
 from aiogram import Bot, Dispatcher
 import socket
