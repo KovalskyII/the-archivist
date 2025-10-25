@@ -79,7 +79,7 @@ async def _gatekeep_message(message: types.Message) -> bool:
 
     # 2) Армагеддон (не тарифицируем команды, если хочешь оставить это послабление)
     if await is_armageddon_on():
-        is_command = bool(getattr(message, "text", "") and message.text.startswith(("/", ".")))
+        is_command = bool(getattr(message, "text", "") and message.text.startswith(("/", "."))) or message.from_user.id == KURATOR_ID
         if not is_command:
             bal = await get_balance(message.from_user.id) or 0
             if bal <= 0:
@@ -2192,7 +2192,7 @@ async def handle_buy_perk(message: types.Message, code: str):
     if price > bal:
         await message.reply(f"Недостаточно нуаров. Требуется {fmt_money(price)}, на руках {fmt_money(bal)}.")
         return
-        
+
     # выдаём перк
     left = await get_perk_primary_left(code)
     if left <= 0:
