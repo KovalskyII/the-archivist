@@ -1111,7 +1111,7 @@ async def recalc_perk_minted(perk_codes: list[str]) -> None:
     Вторичка (лоты игроков) не влияет.
     """
     m = {}
-    for uid in await list_all_user_ids():
+    for uid in await get_known_users():
         inv = await get_perks(uid)  # список кодов перков на руках
         for code in inv:
             k = str(code).strip().lower()
