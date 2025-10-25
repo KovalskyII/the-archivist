@@ -945,10 +945,12 @@ async def handle_naznachit(message: types.Message):
         await message.reply('Нужно ответить на сообщение участника. Формат: назначить "Роль" Описание')
         return
 
+    target = message.reply_to_message.from_user
+
     # ЧС: нельзя даровать
     bl = await get_blacklist()
     if int(target.id) in bl:
-        await safe_reply(message, f"{mention_html(target.id, target.full_name)} в чёрном списке. Дар выдачей запрещён.", parse_mode="HTML")
+        await safe_reply(message, f"⛔ {mention_html(target.id, target.full_name)} в чёрном списке. Ему нет места среди нас.", parse_mode="HTML")
         return
 
 
@@ -962,7 +964,7 @@ async def handle_naznachit(message: types.Message):
     role_name = m.group(1).strip()
     role_desc = m.group(2).strip()
 
-    target = message.reply_to_message.from_user
+
     # set_role ожидает (user_id, role, description)
     await set_role(target.id, role_name, role_desc)
 
