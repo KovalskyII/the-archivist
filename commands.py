@@ -1203,7 +1203,7 @@ async def handle_vruchit(message: types.Message):
         return
 
     recipient = message.reply_to_message.from_user
-    ok = await change_balance(target_id, +amount, f"grant_by_{author_id}", author_id)
+    ok = await change_balance(recipient_id, +amount, f"grant_by_{author_id}", author_id)
     if not ok:
         await message.reply("⛔ Игрок в чёрном списке. Начисление отклонено.")
         return
