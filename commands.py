@@ -1187,14 +1187,19 @@ async def handle_vruchit(message: types.Message):
     if not message.reply_to_message:
         await message.reply("Обращение не по этикету Клуба. Пример: 'вручить 5' (ответом на участника)")
         return
+
     m = re.match(r"(?:вручить|выдать)\s+(-?\d+)", message.text.strip(), re.IGNORECASE)
     if not m:
         await message.reply("Обращение не по этикету Клуба. Пример: 'вручить|выдать 5'")
         return
+
     amount = int(m.group(1))
     if amount <= 0:
         await message.reply("Я не могу выдать минус.")
         return
+
+    author_id = message.from_user.id
+    recipient = message.reply_to_message.from_user
 
     # проверка сейфа
     room = await _get_vault_room()
@@ -1205,13 +1210,17 @@ async def handle_vruchit(message: types.Message):
         await message.reply(f"В сейфе недостаточно нуаров. Доступно: {fmt_money(room)}")
         return
 
-    recipient = message.reply_to_message.from_user
+    # одна операция зачисления (без дубля!) + корректная причина для аудита
     ok = await change_balance(recipient.id, +amount, f"grant_by_{author_id}", author_id)
     if not ok:
         await message.reply("⛔ Игрок в чёрном списке. Начисление отклонено.")
         return
-    await change_balance(recipient.id, amount, "выдача из сейфа", message.from_user.id)
-    await message.reply(f"🧮Я выдал {fmt_money(amount)} {mention_html(recipient.id, recipient.full_name)}", parse_mode="HTML")
+
+    await message.reply(
+        f"🧮Я выдал {fmt_money(amount)} {mention_html(recipient.id, recipient.full_name)}",
+        parse_mode="HTML",
+    )
+
 
 async def handle_otnyat(message: types.Message, text: str, author_id: int):
     if not message.reply_to_message:
