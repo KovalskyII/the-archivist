@@ -13,7 +13,7 @@ import aiosqlite
 from aiogram import types
 from aiogram.types import FSInputFile
 
-
+from config import KURATOR_ID
 
 from db import (
     # базовые
@@ -72,7 +72,7 @@ async def _gatekeep_message(message: types.Message) -> bool:
     author_id = message.from_user.id
 
     # 1) Куратор — всегда можно
-    if author_id == KURATOR_ID:
+    if author_id == config.KURATOR_ID:
         return True
 
     # 2) Чёрный список — глобальный бан
@@ -974,7 +974,7 @@ async def handle_naznachit(message: types.Message):
     if not message.reply_to_message:
         await message.reply('Нужно ответить на сообщение участника. Формат: назначить "Роль" Описание')
         return
-        
+
     # ЧС: нельзя даровать
     bl = await get_blacklist()
     if int(target.id) in bl:
