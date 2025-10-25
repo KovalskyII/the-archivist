@@ -544,12 +544,12 @@ async def handle_message(message: types.Message):
     if author_id == KURATOR_ID:
 
         if text_l == "армагеддон вкл":
-            await set_armagedдон(True)
+            await set_armageddon(True)
             await message.reply("☢️ Режим АРМАГЕДДОН: включён. Каждое сообщение стоит 1 нуар.")
             return
 
         if text_l == "армагеддон выкл":
-            await set_armagedдон(False)
+            await set_armageddon(False)
             await message.reply("☮️ Режим АРМАГЕДДОН: выключён.")
             return
 
