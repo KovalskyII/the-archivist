@@ -197,18 +197,6 @@ async def handle_message(message: types.Message):
         return
 
 
-    ### ДЕБАГИН НОВЫХ КОМАНД - УДАЛИТЬ ############################################
-    def _norm(s: str) -> str:
-        # убираем узкие пробелы/ZWSP, ё→е, схлопываем пробелы
-        return " ".join((s or "").replace("\u202f"," ").replace("\u200b","").replace("\xa0"," ").strip().lower().replace("ё","е").split())
-
-    text_raw = message.text or ""
-    text_l = _norm(text_raw)
-
-    import logging
-    logging.warning(f"[DBG/HM] from={message.from_user.id} txt={text_raw!r} norm={text_l!r}")
-    #################################################################################################
-
     text = message.text.strip()
     text_l = text.lower()
     author_id = message.from_user.id
@@ -246,7 +234,6 @@ async def handle_message(message: types.Message):
         except Exception as e:
             # подстраховка: покажем понятную ошибку, чтобы не падать
             await message.reply(f"Не удалось сформировать список команд: {e}")
-        logging.warning("[DBG/RET] branch=PERK_MENU text=%r", text_l)
         return
 
         
@@ -280,7 +267,6 @@ async def handle_message(message: types.Message):
 
     if text_l == "рейтинг клуба":
         await handle_rating(message)
-        logging.warning("[DBG/RET] branch=PERK_MENU text=%r", text_l)
         return
 
     if text_l == "члены клуба":
@@ -311,12 +297,10 @@ async def handle_message(message: types.Message):
 
     if text_l == "мои перки":
         await handle_my_perks(message)
-        logging.warning("[DBG/RET] branch=PERK_MENU text=%r", text_l)
         return
 
     if text_l == "перки" and message.reply_to_message:
         await handle_perks_of(message)
-        logging.warning("[DBG/RET] branch=PERK_MENU text=%r", text_l)
         return
 
     if text_l in ("получить жалование", "я сру"):
@@ -331,7 +315,6 @@ async def handle_message(message: types.Message):
     # рынок
     if text_l == "рынок":
         await handle_market_show(message)
-        logging.warning("[DBG/RET] branch=PERK_MENU text=%r", text_l)
         return
 
     if text_l == "купить эмеральд":
@@ -342,7 +325,6 @@ async def handle_message(message: types.Message):
     if m:
         code = m.group(1).strip()
         await handle_buy_perk(message, code)
-        logging.warning("[DBG/RET] branch=PERK_MENU text=%r", text_l)
         return
 
     # разместить лот: поддержка пробелов в ссылке, цена — последнее число
@@ -374,7 +356,6 @@ async def handle_message(message: types.Message):
         code = m.group(1).strip().lower()
         price = int(m.group(2))
         await handle_perk_sell(message, code, price)
-        logging.warning("[DBG/RET] branch=PERK_MENU text=%r", text_l)
         return
 
 
@@ -392,12 +373,10 @@ async def handle_message(message: types.Message):
     m = re.match(r"^(?:у кого перк|держатели перка)\s+(\S+)$", text_l)
     if m:
         await handle_perk_holders_list(message, m.group(1))
-        logging.warning("[DBG/RET] branch=PERK_MENU text=%r", text_l)
         return
 
     if text_l == "реестр перков":
         await handle_perk_registry(message)
-        logging.warning("[DBG/RET] branch=PERK_MENU text=%r", text_l)
         return
 
     if text_l == "концерт":
@@ -561,7 +540,6 @@ async def handle_message(message: types.Message):
         if text_l == "армагеддон вкл":
             await set_armageddon(True)
             await message.reply("☢️ Режим АРМАГЕДДОН: включён. Каждое сообщение стоит 1 нуар.")
-            logging.warning("[DBG/RET] branch=PERK_MENU text=%r", text_l)
             return
 
         if text_l == "армагеддон выкл":
@@ -2692,7 +2670,6 @@ async def handle_hero_of_day(message: types.Message):
     hero_id = random.choice(candidates)
     await hero_set_for_today(chat_id, hero_id, hours=4)
 
-    # тексты анонса (без пингов)
     try:
         member = await message.bot.get_chat_member(chat_id, hero_id)
         hero_name = member.user.full_name or "Участник"
