@@ -1,16 +1,22 @@
 FROM python:3.11-slim
 
-ENV PYTHONUNBUFFERED=1
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONPATH=/app
 WORKDIR /app
 
-# Сначала зависимости (кэш эффективнее)
-COPY requirements.txt /app/requirements.txt
-RUN pip install --no-cache-dir -U pip \
- && pip install --no-cache-dir -r /app/requirements.txt \
- && python -c "import aiogram; print('aiogram version in image:', aiogram.__version__)"
+# 1) кэш-бастер
+ARG CACHEBUST=0
+RUN echo "CACHEBUST=${CACHEBUST}"
 
-# Потом код
-COPY . /app
+# 2) зависимости
+COPY requirements.txt ./ 
+RUN pip install -U pip && pip install --no-cache-dir -r requirements.txt
 
-EXPOSE 8080
+# 3) код
+COPY . .
+
+# 4) подчистить старые байткоды
+RUN find /app -name '*.pyc' -delete
+
 CMD ["python", "bot.py"]
