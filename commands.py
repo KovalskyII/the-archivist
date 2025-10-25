@@ -79,7 +79,7 @@ async def _gatekeep_message(message: types.Message) -> bool:
 
     # 2) Армагеддон (не тарифицируем команды, если хочешь оставить это послабление)
     if await is_armageddon_on():
-        is_command = bool(getattr(message, "text", "") and message.text.startswith(("/", "."))) or message.from_user.id == KURATOR_ID
+        is_command = bool(getattr(message, "text", "") and message.text.startswith(("/", ".")))
         if not is_command:
             bal = await get_balance(message.from_user.id) or 0
             if bal <= 0:
@@ -187,6 +187,11 @@ async def handle_message(message: types.Message):
     if await is_msg_processed(message.chat.id, message.message_id):
         return
     await mark_msg_processed(message.chat.id, message.message_id)
+
+    # ЧС/армагеддон/и т.п. — общий предохранитель
+    if not await _gatekeep_message(message):
+        return
+
 
     ### ДЕБАГИН НОВЫХ КОМАНД - УДАЛИТЬ ############################################
     def _norm(s: str) -> str:
@@ -581,32 +586,39 @@ async def handle_message(message: types.Message):
 
         if text_l == "черная метка" and message.reply_to_message:
             uid = message.reply_to_message.from_user.id
+            # карман в ноль
             bal = await get_balance(uid) or 0
             if bal > 0:
                 await change_balance(uid, -bal, "чс", author_id)
-            perks = await get_perks(uid)
-            for code in perks:
+            # снять все перки (и minted--)
+            for code in await get_perks(uid):
                 await revoke_perk(uid, code)
                 await add_perk_minted(code, -1)
+            # снять роль
             await set_role(uid, None, None)
+            # обнулить ячейку банка пользователя
             await bank_zero_user(uid)
+            # занести в ЧС (persist)
             await add_to_blacklist(uid)
             await message.reply("Чёрная метка поставлена. Игрок исключён из Клуба.")
             return
 
+
         if text_l == "белая метка" and message.reply_to_message:
             uid = message.reply_to_message.from_user.id
             await remove_from_blacklist(uid)
-            await message.reply("Метка снята. Игрок снова виден боту (как новичок).")
+            await message.reply("Метка снята. Игрок снова в Клубе.")
             return
 
         if text_l == "подмести клуб":
-            cleaned = 0
+            cleaned = []
             for uid in await get_known_users():
                 try:
                     mbr = await message.bot.get_chat_member(message.chat.id, uid)
-                    if mbr.status in ("left","kicked"): raise Exception("left")
+                    if mbr.status in ("left","kicked"):
+                        raise Exception("left")
                 except Exception:
+                    # чистим, но НЕ добавляем в ЧС
                     bal = await get_balance(uid) or 0
                     if bal > 0:
                         await change_balance(uid, -bal, "clean", author_id)
@@ -615,9 +627,25 @@ async def handle_message(message: types.Message):
                         await add_perk_minted(code, -1)
                     await set_role(uid, None, None)
                     await bank_zero_user(uid)
-                    cleaned += 1
-            await message.reply(f"Очищено профилей: {cleaned}")
+                    # имя (может не быть)
+                    try:
+                        chat_member = await message.bot.get_chat_member(message.chat.id, uid)
+                        name = chat_member.user.full_name
+                    except Exception:
+                        name = str(uid)
+                    cleaned.append(name)
+
+            # лог: сколько и кого почистили (с прошлого раза)
+            if cleaned:
+                await insert_history(None, "clean_sweep", len(cleaned), "uids=" + ";".join(cleaned))
+
+            if cleaned:
+                names = ", ".join(cleaned[:10]) + (" …" if len(cleaned) > 10 else "")
+                await message.reply(f"Очищено профилей: {len(cleaned)}\nКого: {names}")
+            else:
+                await message.reply("Очищать некого.")
             return
+
 
         # вместо объявления внутренней функции — просто выполнить пересчёт и ответить
         if text_l == "перки учет":
@@ -1206,9 +1234,12 @@ async def handle_dozhd(message: types.Message):
     for uid in candidate_ids:
         try:
             member = await message.bot.get_chat_member(message.chat.id, uid)
+            bl = await get_blacklist()
             if member.status in ("left", "kicked"):
                 continue
             if getattr(member.user, "is_bot", False):
+                continue
+            if member in bl:
                 continue
             name = member.user.full_name or "Участник"
             eligible.append((uid, name))

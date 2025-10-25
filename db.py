@@ -125,6 +125,30 @@ async def ensure_user(db, user_id: int):
 async def change_balance(user_id: int, amount: int, reason: str, author_id: int):
     async with aiosqlite.connect(DB_PATH) as db:
         await ensure_user(db, user_id)
+        # Запрет начислений чёрному списку
+        async with aiosqlite.connect(DB_PATH) as _db_bl:
+            async with _db_bl.execute("""
+                SELECT reason FROM history
+                WHERE action='config_str:blacklist' ORDER BY id DESC LIMIT 1
+            """) as cur:
+                row = await cur.fetchone()
+        bl = set()
+        if row and row[0]:
+            try:
+                import json
+                bl = set(json.loads(row[0]).get("value", []))
+            except Exception:
+                bl = set()
+
+        if amount > 0 and int(user_id) in bl:
+            # логируем блокировку (не меняя баланс)
+            await db.execute(
+                "INSERT INTO history (user_id, action, amount, reason) VALUES (?, 'blocked_blacklist', ?, ?)",
+                (user_id, amount, reason)
+            )
+            await db.commit()
+            return
+
         async with db.execute("SELECT balance FROM users WHERE user_id = ?", (user_id,)) as cur:
             row = await cur.fetchone()
             current_balance = row[0]
@@ -154,6 +178,23 @@ async def reset_all_balances():
 # ------- роли -------
 
 async def set_role(user_id: int, role_name: str | None, role_desc: str | None):
+    # запрет ролей чёрному списку
+    async with aiosqlite.connect(DB_PATH) as _db_bl:
+        async with _db_bl.execute("""
+            SELECT reason FROM history
+            WHERE action='config_str:blacklist' ORDER BY id DESC LIMIT 1
+        """) as cur:
+            row = await cur.fetchone()
+    bl = set()
+    if row and row[0]:
+        try:
+            import json
+            bl = set(json.loads(row[0]).get("value", []))
+        except Exception:
+            bl = set()
+    if user_id in bl:
+        return
+
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute("""
             INSERT INTO roles (user_id, role_name, role_desc, role_image)
@@ -264,7 +305,24 @@ def _normalize_perk_code(code: str) -> str:
 
 async def grant_perk(user_id: int, perk_code: str):
     perk_code = _normalize_perk_code(perk_code)
+    # нельзя выдавать перки чёрному списку
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("""
+            SELECT reason FROM history
+            WHERE action='config_str:blacklist' ORDER BY id DESC LIMIT 1
+        """) as cur:
+            row = await cur.fetchone()
+    bl = set()
+    if row and row[0]:
+        try:
+            import json
+            bl = set(json.loads(row[0]).get("value", []))
+        except Exception:
+            bl = set()
+    if int(user_id) in bl:
+        return None
     return await insert_history(user_id, "perk_grant", None, perk_code)
+
 
 async def revoke_perk(user_id: int, perk_code: str):
     perk_code = _normalize_perk_code(perk_code)
@@ -1153,17 +1211,16 @@ async def add_perk_minted(code: str, delta: int) -> None:
 async def get_perk_primary_left(code: str) -> int:
     code = _normalize_perk_code(code)
     caps = await get_perk_caps()
-    cap = int(caps.get(code, 0))
+    cap  = int(caps.get(code, 0))
 
-    # активы на руках
-    holders = await get_perk_holders(code)
-    active = len(holders)
+    holders = await get_perk_holders(code)   # у кого на руках
+    active  = len(holders)
 
-    # ваучеры (по всем пользователям)
-    vouchers = await get_vouchers_total_for_code(code)
+    vouchers = await get_vouchers_total_for_code(code)  # все ваучеры по коду
 
     used = active + vouchers
     return max(0, cap - used)
+
 
 async def recalc_perk_minted(perk_codes: list[str]) -> None:
     """
