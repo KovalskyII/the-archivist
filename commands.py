@@ -30,7 +30,8 @@ from db import (
     get_cell_stor_fee_pct, set_cell_stor_fee_pct, get_perk_credits, perk_credit_add, perk_credit_use, create_perk_offer, get_perk_escrow_owner,
     perk_escrow_open, perk_escrow_close, get_pin_q_mult, get_bravo_window_sec, get_bravo_max_viewers, hero_save_claim_msg, hero_get_last_claim_msg,
     bravo_count_for_msg, bravo_already_claimed, record_bravo, get_vault_free_amount, get_perk_caps, set_perk_cap, get_perk_primary_left, add_perk_minted,
-    recalc_perk_minted, is_armageddon_on, set_armageddon, get_blacklist, add_to_blacklist, remove_from_blacklist,
+    recalc_perk_minted, is_armageddon_on, set_armageddon, get_blacklist, add_to_blacklist, remove_from_blacklist, bank_zero_user, list_all_vouchers_counts,
+    get_vouchers_total_for_code, 
 
     # анти-дубль
     is_msg_processed, mark_msg_processed,
@@ -588,7 +589,7 @@ async def handle_message(message: types.Message):
                 await revoke_perk(uid, code)
                 await add_perk_minted(code, -1)
             await set_role(uid, None, None)
-            await bank_zero_all_and_sum()
+            await bank_zero_user(uid)
             await add_to_blacklist(uid)
             await message.reply("Чёрная метка поставлена. Игрок исключён из Клуба.")
             return
@@ -613,7 +614,7 @@ async def handle_message(message: types.Message):
                         await revoke_perk(uid, code)
                         await add_perk_minted(code, -1)
                     await set_role(uid, None, None)
-                    await bank_zero_all_and_sum()
+                    await bank_zero_user(uid)
                     cleaned += 1
             await message.reply(f"Очищено профилей: {cleaned}")
             return

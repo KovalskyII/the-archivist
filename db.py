@@ -371,6 +371,43 @@ async def get_perk_credits(user_id: int, code: str) -> int:
         else:                            use += int(amt or 0)
     return max(0, add - use)
 
+# db.py — ДОБАВИТЬ
+async def list_all_vouchers_counts() -> list[tuple[str, int]]:
+    """
+    Вернёт список пар (perk_code, total_credits) по всем пользователям.
+    Учитываются события perk_credit_add ( +1 ) и perk_credit_use ( -1 ).
+    """
+    agg: dict[str, int] = {}
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("""
+            SELECT action, COALESCE(amount,0), reason
+            FROM history
+            WHERE action IN ('perk_credit_add','perk_credit_use')
+        """) as cur:
+            rows = await cur.fetchall()
+    for action, amt, reason in rows:
+        code = _normalize_perk_code(_reason_get(reason, "code"))
+        if not code:
+            continue
+        v = int(amt or 0)
+        if action == "perk_credit_add":
+            agg[code] = agg.get(code, 0) + v
+        else:
+            agg[code] = agg.get(code, 0) - v
+    # только положительные остатки
+    return [(code, cnt) for code, cnt in agg.items() if cnt > 0]
+
+
+# по коду — быстрый помощник
+async def get_vouchers_total_for_code(code: str) -> int:
+    code = _normalize_perk_code(code)
+    total = 0
+    for c, cnt in await list_all_vouchers_counts():
+        if c == code:
+            total += int(cnt)
+    return max(0, total)
+
+
 async def perk_escrow_open(user_id: int, code: str, offer_id: int):
     code = _normalize_perk_code(code)
     await insert_history(user_id, "perk_escrow_open", None, f"code={code};offer_id={offer_id}")
@@ -643,6 +680,19 @@ async def bank_touch_all_and_total() -> int:
         await cell_touch(uid)
         total += await _cell_calc_balance(uid)
     return total
+
+# db.py — ДОБАВИТЬ
+async def bank_zero_user(user_id: int) -> int:
+    """
+    Полностью обнулить банковскую ячейку конкретного пользователя.
+    Возвращает, сколько было списано из ячейки.
+    """
+    await cell_touch(user_id)
+    bal = await _cell_calc_balance(user_id)
+    if bal > 0:
+        await insert_history(user_id, "cell_wd", bal, "bank_user_zero")
+    return bal
+
 
 async def bank_zero_all_and_sum() -> int:
     total = 0
@@ -1063,8 +1113,8 @@ async def set_config_str(key: str, value: str) -> None:
     payload = json.dumps({"value": str(value)}, ensure_ascii=False)
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(
-            "INSERT INTO history (ts, user_id, amount, action, reason) VALUES (?, ?, ?, ?, ?)",
-            (int(datetime.now(timezone.utc).timestamp()), 0, 0, f"config_str:{key}", payload)
+            "INSERT INTO history (user_id, action, amount, reason) VALUES (?, ?, ?, ?)",
+            (0, f"config_str:{key}", 0, payload)
         )
         await db.commit()
 
@@ -1099,10 +1149,18 @@ async def add_perk_minted(code: str, delta: int) -> None:
     await _set_json_cfg(CFG_PERK_MINTED, m)
 
 async def get_perk_primary_left(code: str) -> int:
+    code = _normalize_perk_code(code)
     caps = await get_perk_caps()
-    m = await get_perk_minted()
     cap = int(caps.get(code, 0))
-    used = int(m.get(code, 0))
+
+    # активы на руках
+    holders = await get_perk_holders(code)
+    active = len(holders)
+
+    # ваучеры (по всем пользователям)
+    vouchers = await get_vouchers_total_for_code(code)
+
+    used = active + vouchers
     return max(0, cap - used)
 
 async def recalc_perk_minted(perk_codes: list[str]) -> None:
