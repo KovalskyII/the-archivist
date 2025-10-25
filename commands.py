@@ -59,7 +59,6 @@ from db import (
 from aiolimiter import AsyncLimiter
 
 tg_limiter = AsyncLimiter(28, 1)  # ~28 запросов/сек
-router = Router()
 
 # ==== один раз, рядом с импортами ====
 async def _gatekeep_message(message: types.Message) -> bool:
@@ -557,7 +556,7 @@ async def handle_message(message: types.Message):
         if m:
             code = m.group(1).strip().lower()
             n = int(m.group(2))
-            await set_perк_cap(code, n)
+            await set_perk_cap(code, n)
             left = await get_perk_primary_left(code)
             cap  = (await get_perk_caps()).get(code, 0)
             await message.reply(f"Лимит для «{code}»: {cap}. Доступно на рынке: {left}.")
@@ -2840,19 +2839,3 @@ async def handle_burn_cmd(message: types.Message, amount: int):
 
     await message.reply(f"🔥 Ты сжег {fmt_money(amount)}. Было тепло, но теперь они утеряны навсегда.")
 
-
-@router.message(F.photo & F.caption)
-async def on_photo(message: types.Message):
-    if not await _gatekeep_message(message):
-        return
-    await handle_photo_command(message)
-
-@router.message()
-async def on_text(message: types.Message):
-    if not getattr(message, "text", None):
-        return
-    if getattr(message.from_user, "is_bot", False):
-        return
-    if not await _gatekeep_message(message):
-        return
-    await handle_message(message)
