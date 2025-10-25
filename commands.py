@@ -3,6 +3,7 @@ import os
 import sys
 import asyncio
 import random
+import logging
 from random import randint
 import html
 from typing import List, Tuple
@@ -12,6 +13,7 @@ import aiosqlite
 from aiogram import types
 from aiogram.types import FSInputFile
 from aiogram import Router, F
+
 
 
 from db import (
@@ -558,7 +560,7 @@ async def handle_message(message: types.Message):
             await set_perк_cap(code, n)
             left = await get_perk_primary_left(code)
             cap  = (await get_perk_caps()).get(code, 0)
-            await message.reply(f"Лимит для «{code}»: {cap}. Доступно на первичке: {left}.")
+            await message.reply(f"Лимит для «{code}»: {cap}. Доступно на рынке: {left}.")
             return
 
         if text_l == "черная метка" and message.reply_to_message:
@@ -573,7 +575,7 @@ async def handle_message(message: types.Message):
             await set_role(uid, None, None)
             await bank_zero_all(uid)
             await add_to_blacklist(uid)
-            await message.reply("Чёрная метка поставлена. Игрок исключён из игры.")
+            await message.reply("Чёрная метка поставлена. Игрок исключён из Клуба.")
             return
 
         if text_l == "белая метка" and message.reply_to_message:
