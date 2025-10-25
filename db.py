@@ -1481,3 +1481,14 @@ async def get_vault_free_amount() -> int:
     return max(0, int(stats["vault"]) - int(total_bank))
 
 
+ARMAGEDDON_PRICE_KEY = "armageddon_price"
+
+async def get_armageddon_price() -> int:
+    s = await get_config_str(ARMAGEDDON_PRICE_KEY, "1")
+    try:
+        return max(0, int(s))
+    except Exception:
+        return 1
+
+async def set_armageddon_price(n: int) -> None:
+    await set_config_str(ARMAGEDDON_PRICE_KEY, str(max(0, int(n))))

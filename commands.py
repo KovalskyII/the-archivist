@@ -31,7 +31,7 @@ from db import (
     perk_escrow_open, perk_escrow_close, get_pin_q_mult, get_bravo_window_sec, get_bravo_max_viewers, hero_save_claim_msg, hero_get_last_claim_msg,
     bravo_count_for_msg, bravo_already_claimed, record_bravo, get_vault_free_amount, get_perk_caps, set_perk_cap, get_perk_primary_left, add_perk_minted,
     recalc_perk_minted, is_armageddon_on, set_armageddon, get_blacklist, add_to_blacklist, remove_from_blacklist, bank_zero_user, list_all_vouchers_counts,
-    get_vouchers_total_for_code, get_cleaned_users, set_cleaned_users,
+    get_vouchers_total_for_code, get_cleaned_users, set_cleaned_users, get_armageddon_price, set_armageddon_price,
 
     # анти-дубль
     is_msg_processed, mark_msg_processed,
@@ -92,7 +92,9 @@ async def _gatekeep_message(message: types.Message) -> bool:
                 except Exception:
                     pass
                 return False
-            await change_balance(author_id, -1, "армагеддон", author_id)
+            price = await get_armageddon_price()
+            if price > 0:
+                await change_balance(author_id, -price, "армагеддон", author_id)
     return True
 
 
@@ -539,12 +541,24 @@ async def handle_message(message: types.Message):
 
         if text_l == "армагеддон вкл":
             await set_armageddon(True)
-            await message.reply("☢️ Режим АРМАГЕДДОН: включён. Каждое сообщение стоит 1 нуар.")
+            status = await message.reply("☢️ Режим АРМАГЕДДОН: включён. Каждое сообщение стоит 1 нуар.")
+            await message.bot.pin_chat_message(
+                chat_id=message.chat.id,
+                message_id=status.message_id,
+                disable_notification=True    # тихий пин
+            )
             return
 
         if text_l == "армагеддон выкл":
             await set_armageddon(False)
             await message.reply("☮️ Режим АРМАГЕДДОН: выключён.")
+            return
+
+        m = re.match(r"армагеддон\s+цена\s+(\d+)$", text_l)
+        if m and message.from_user.id == KURATOR_ID:
+            price = int(m.group(1))
+            await set_armageddon_price(price)
+            await message.reply(f"Цена армагеддона установлена: {price} нуар(а).")
             return
 
 
