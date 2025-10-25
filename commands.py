@@ -72,7 +72,7 @@ async def _gatekeep_message(message: types.Message) -> bool:
     author_id = message.from_user.id
 
     # 1) Куратор — всегда можно
-    if author_id == config.KURATOR_ID:
+    if author_id == KURATOR_ID:
         return True
 
     # 2) Чёрный список — глобальный бан
