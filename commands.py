@@ -194,13 +194,8 @@ async def handle_message(message: types.Message):
     from db import touch_user
     await touch_user(author_id, message.from_user.username)
 
-    is_cmd = text_l.startswith(("/", ".")) or (
-        author_id == KURATOR_ID and (
-            text_l in {"армагеддон вкл","армагеддон выкл","подмести клуб","черная метка","белая метка"}
-            or text_l.startswith("перки лимит ")
-        )
-    )
-    if await is_armageddon_on() and not is_cmd:
+
+    if await is_armageddon_on():
         bal = await get_balance(author_id) or 0
         if bal <= 0:
             try: await message.delete()
