@@ -2675,10 +2675,14 @@ async def handle_hero_of_day(message: types.Message):
 
         return
 
+    # исключаем чёрную метку из кандидатов
+    bl = await get_blacklist()
 
-    # выбираем случайного участника (не бота, в чате, из известных)
+    # выбираем случайного участника (не бота, в чате, из известных, НЕ в ЧС)
     candidates = []
     for uid in await get_known_users():
+        if uid in bl:                 # <<< ДОБАВЛЕНО
+            continue
         try:
             member = await message.bot.get_chat_member(chat_id, uid)
             if getattr(member.user, "is_bot", False):
