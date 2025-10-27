@@ -889,7 +889,7 @@ async def handle_message(message: types.Message):
             p = int(m.group(1))
             await set_cell_stor_fee_pct(p)
             cur = await get_cell_stor_fee_pct()
-            await message.reply(f"🛠️ Комиссия хранения установлена: {cur}% / 6ч")
+            await message.reply(f"🛠️ Комиссия хранения установлена: {cur}% / 12ч")
             return
 
         # банк кд <дней>
@@ -2896,7 +2896,7 @@ async def handle_bank_summary_cmd(message: types.Message):
         "🏛 <b>БАНК</b> 🏛\n\n"
         f"🗄 <b>Общий баланс ячеек:</b> {fmt_money(total)}\n"
         f"💰 <b>Комиссия пополнения:</b> {dep}%\n"
-        f"💰 <b>Комиссия хранения:</b> {stor}% / 6ч",
+        f"💰 <b>Комиссия хранения:</b> {stor}% / 12ч",
         parse_mode="HTML"
     )
 

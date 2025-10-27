@@ -580,7 +580,7 @@ async def set_cell_stor_fee_pct(v: int):
 
 # ===== ЯЧЕЙКИ (БАНК) НА HISTORY =====
 import math
-FOUR_HOURS = 6 * 60 * 60  # в секундах
+FOUR_HOURS = 12 * 60 * 60  # в секундах
 
 async def _now_ts(db=None) -> int:
     if db is not None:
