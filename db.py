@@ -560,7 +560,7 @@ CFG_MULT_SLOTS    = "mult_slots"
 CFG_CASINO_ON     = "casino_on"       # 0/1
 CFG_LIMIT_BET     = "limit_bet"       # 0=нет
 CFG_LIMIT_RAIN    = "limit_rain"      # 0=нет
-CFG_PRICE_EMERALD = "price_emerald"   # цена эмеральда
+
 # цены перков: key = price_perk:<code>
 # ==== BANK (ячейки): комиссии ====
 CFG_CELL_DEP_FEE_PCT   = "cell_dep_fee_pct"    # комиссия за депозит, % от внесённой суммы
@@ -801,12 +801,6 @@ async def get_limit_rain() -> int:
 
 async def set_limit_rain(v: int):
     await set_config_int(CFG_LIMIT_RAIN, max(0, v))
-
-async def get_price_emerald() -> int:
-    return await get_config_int(CFG_PRICE_EMERALD, 1000)
-
-async def set_price_emerald(v: int):
-    await set_config_int(CFG_PRICE_EMERALD, max(1, v))
 
 async def get_price_perk(code: str) -> Optional[int]:
     code = _normalize_perk_code(code)

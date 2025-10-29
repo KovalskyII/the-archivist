@@ -50,7 +50,7 @@ from db import (
     # конфиги игр/лимитов/цен
     get_multipliers, set_multiplier, get_casino_on, set_casino_on,
     get_limit_bet, set_limit_bet, get_limit_rain, set_limit_rain,
-    get_price_emerald, set_price_emerald, get_price_perk, set_price_perk,
+    get_price_perk, set_price_perk,
 
     # рынок
     create_offer, cancel_offer, list_active_offers, record_burn,
@@ -318,10 +318,6 @@ async def handle_message(message: types.Message):
     # рынок
     if text_l == "рынок":
         await handle_market_show(message)
-        return
-
-    if text_l == "купить эмеральд":
-        await handle_buy_emerald(message)
         return
 
     m = re.match(r"^купить\s+перк\s+(.+)$", text_l)
@@ -791,14 +787,6 @@ async def handle_message(message: types.Message):
             await message.reply(f"🛠️ Готово. Сжигание установлено на {fmt_percent_bps(cur)}.")
             return
 
-        # цена эмеральд <N>
-        m = re.match(r"^цена\s+эмеральд\s+(\d+)$", text_l)
-        if m:
-            v = int(m.group(1))
-            await set_price_emerald(v)
-            cur = await get_price_emerald()
-            await message.reply(f"🛠️ Готово. Цена Эмеральда: {fmt_money(cur)}.")
-            return
 
         # цена перк <код> <N>
         m = re.match(r"^цена\s+перк\s+(\S+)\s+(\d+)$", text_l)
@@ -1944,7 +1932,7 @@ async def handle_theft(message: types.Message):
 
 async def handle_market_show(message: types.Message):
     try:
-        price_emerald = await get_price_emerald()
+
         burn_bps = await get_burn_bps()
 
         t24  = await get_market_turnover_days(1)
@@ -2045,7 +2033,6 @@ async def handle_market_show(message: types.Message):
 
         parts = []
         parts.append("🛒 <b>РЫНОК</b>\n\n")
-        parts.append(f"💎 <b>Эмеральд:</b> {fmt_money(price_emerald)}\n<b>Команда покупки:</b> купить эмеральд\n\n")
         parts.append("🎖 <b>ПЕРКИ</b>\n")
         parts.append(perks_header + "\n\n")
         parts.append("\n\n".join(perk_blocks) if perk_blocks else "Пока ничего нет.")
@@ -2260,32 +2247,6 @@ async def handle_offer_buy(message: types.Message, offer_id: int):
     )
 
 
-async def handle_buy_emerald(message: types.Message):
-    price = await get_price_emerald()
-    buyer_id = message.from_user.id
-    bal = await get_balance(buyer_id)
-    if price > bal:
-        await message.reply(f"Недостаточно нуаров. Требуется {fmt_money(price)}, на руках {fmt_money(bal)}.")
-        return
-    burn = await _apply_burn_and_return(price)
-    # списываем у покупателя (остаток как бы уходит в сейф, т.к. никому не начисляем)
-    await change_balance(buyer_id, -price, "покупка эмеральда", buyer_id)
-    if burn > 0:
-        await record_burn(burn, "emerald")
-    # контракт/чек
-    sale_id = await insert_history(buyer_id, "emerald_buy", price, None)
-    today = datetime.utcnow().strftime("%Y%m%d")
-    contract_id = f"C-{today}-{sale_id}"
-    await safe_reply(message,
-        f"🧾 Контракт {contract_id}\n"
-        f"Покупатель: {mention_html(buyer_id, message.from_user.full_name)}\n"
-        f"Товар: «Эмеральд»\n"
-        f"Цена: {fmt_money(price)}\n"
-        f"Комиссия (сжигание/налог): {fmt_money(burn)}\n"
-        f"Перевод в сейф: {fmt_money(price - burn)}\n"
-        f"Гарант: @kovalskyii",
-        parse_mode="HTML"
-    )
 
 async def handle_buy_perk(message: types.Message, code: str):
     code = code.strip().lower()
@@ -2434,9 +2395,6 @@ async def handle_burn_bps_set(message: types.Message, v: int):
     cur = await get_burn_bps()
     await message.reply(f"🛠️ Готово. Сжигание установлено на {fmt_percent_bps(cur)}.")
 
-async def handle_price_emerald_set(message: types.Message, v: int):
-    await set_price_emerald(v)
-    await message.reply(f"🛠️ Готово. Цена Эмеральда: {fmt_money(v)}.")
 
 async def handle_price_perk_set(message: types.Message, code: str, v: int):
     code = code.strip().lower()
@@ -2513,7 +2471,7 @@ async def handle_commands_catalog(message: types.Message):
         "дождь <N> — раздать до 5 случайным",
         "ставлю <N> на 🎲/кубик | 🎯/дартс | 🎳/боулинг | 🎰/автоматы — ставка в игру",
         "рынок — витрина товаров и лотов",
-        "купить эмеральд / купить перк <код> / купить лот <offer_id>",
+        "купить перк <код> / купить лот <offer_id>",
         "выставить <ссылка> <цена> / снять лот <offer_id>",
         "мои перки - просмотр своих перков",
         "перки(reply) - просмотр перков другого участника Клуба",
@@ -2566,7 +2524,6 @@ async def handle_commands_curator(message: types.Message):
             "лимит ставка <N>",
         ]),
         ("💎 Рынок и цены", [
-            "цена эмеральд <N>",
             "цена перк <код> <N>",
         ]),
         ("🎖 Перки", [
