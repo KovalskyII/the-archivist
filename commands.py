@@ -2011,7 +2011,7 @@ async def handle_market_show(message: types.Message):
                 emoji, title = PERK_REGISTRY.get(code, ("", code))
                 offer_blocks.append(
                     f"<b>Товар:</b> Перк «{title}» {emoji}\n"
-                    f"<b>Команда покупки:</b> <code>купить перк {offer_id}</code>\n"
+                    f"<b>Команда покупки:</b> <code>купить лот {offer_id}</code>\n"
                     f"<b>Цена:</b> {fmt_money(price)}\n"
                     f"<b>Продавец:</b> {seller_repr}\n"
                 )
@@ -2089,8 +2089,6 @@ async def handle_offer_cancel(message: types.Message, offer_id: int):
         # сперва закрываем эскроу
         await perk_escrow_close(offer["seller_id"], code, offer_id, "cancel")
 
-        # если у продавца ТЕПЕРЬ уже есть этот перк (мог купить заново) — вернём ему ваучером,
-        # иначе — вернём активным перком
         seller_perks = await get_perks(offer["seller_id"])
         if code in seller_perks:
             await perk_credit_add(offer["seller_id"], code)
