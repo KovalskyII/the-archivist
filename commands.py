@@ -911,8 +911,8 @@ async def handle_message(message: types.Message):
                 f"• Надбавка: {fmt_money(cur_bonus)}\n"
                 f"• Кража: {fmt_money(cur_income)}\n"
                 f"• Порог щедрости: {fmt_money(await get_generosity_threshold())}\n"
-                f"• Цена тихого пина: {fmt_money(await get_price_pin())}\n"
-                f"• Цена громкого пина: {fmt_money(await get_price_pin_loud())}"
+                f"• Цена тихого пина: {fmt_money(10*await get_price_pin())}\n"
+                f"• Цена громкого пина: {fmt_money(10*await get_price_pin_loud())}"
             )
             return
 
