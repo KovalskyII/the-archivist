@@ -2760,15 +2760,15 @@ async def _pin_paid(message: types.Message, loud: bool):
         await message.reply("Нужно ответить на сообщение, которое хотите закрепить.")
         return
     price = await get_price_pin_loud() if loud else await get_price_pin()
-
+    purchase = 10*price
     user_id = message.from_user.id
     bal = await get_balance(user_id)
-    if price > bal:
-        await message.reply(f"Не хватает нуаров. Цена: {fmt_money(price)}. На руках: {fmt_money(bal)}.")
+    if purchase > bal:
+        await message.reply(f"Не хватает нуаров. Цена: {fmt_money(purchase)}. На руках: {fmt_money(bal)}.")
         return
 
     # списываем (идёт в сейф; никому не начисляем)
-    await change_balance(user_id, -price, "util_pin" + ("_loud" if loud else ""), user_id)
+    await change_balance(user_id, -purchase, "util_pin" + ("_loud" if loud else ""), user_id)
 
     # пин
     try:
@@ -2777,7 +2777,7 @@ async def _pin_paid(message: types.Message, loud: bool):
             message_id=message.reply_to_message.message_id,
             disable_notification=not loud  # тихий = True, громкий = False
         )
-        await message.reply(f"Сообщение закреплено. С вас снято: {fmt_money(price)}")
+        await message.reply(f"Сообщение закреплено. С вас снято: {fmt_money(purchase)}")
     except Exception as e:
         await message.reply(f"Не удалось закрепить: {e}")
 
