@@ -2450,8 +2450,8 @@ def bullets(items: list[str]) -> str:
 
 async def handle_commands_catalog(message: types.Message):
 
-    price_pin = await get_price_pin()
-    price_pin_loud = await get_price_pin_loud()
+    price_pin = 10*await get_price_pin()
+    price_pin_loud =10* await get_price_pin_loud()
 
     keyholders = [
         "вручить <N> (reply) — выдать из сейфа",
