@@ -479,6 +479,56 @@ async def get_perk_escrow_owner(offer_id: int) -> tuple[int | None, str | None]:
     uid, reason = row
     return (int(uid), _reason_get(reason, "code"))
 
+# Сколько лотов по этому перку сейчас в эскроу (открыты и не закрыты)
+async def get_perk_escrowed_total_for_code(code: str) -> int:
+    code = _normalize_perk_code(code)
+    # 1) соберём все открытия эскроу по этому коду
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("""
+            SELECT id, reason
+            FROM history
+            WHERE action='perk_escrow_open'
+              AND reason LIKE ?
+        """, (f"%code={code}%",)) as cur:
+            opens = await cur.fetchall()
+
+        if not opens:
+            return 0
+
+        # 2) заранее заберём все закрытия (sold/cancel) по этому коду
+        async with db.execute("""
+            SELECT id, reason
+            FROM history
+            WHERE action='perk_escrow_close'
+              AND reason LIKE ?
+        """, (f"%code={code}%",)) as cur:
+            closes = await cur.fetchall()
+
+    # превратим закрытия в множество offer_id
+    closed_offer_ids: set[int] = set()
+    for cid, r in closes:
+        off = _reason_get(r, "offer_id")
+        if off is not None:
+            try:
+                closed_offer_ids.add(int(off))
+            except Exception:
+                pass
+
+    # считаем активные — те офферы, по которым НЕ было закрытия
+    active = 0
+    for oid, r in opens:
+        off = _reason_get(r, "offer_id")
+        if off is None:
+            continue
+        try:
+            off_i = int(off)
+        except Exception:
+            continue
+        if off_i not in closed_offer_ids:
+            active += 1
+
+    return active
+
 
 # ------- ЗП/кража кулдауны -------
 
@@ -1193,12 +1243,11 @@ async def get_perk_primary_left(code: str) -> int:
     caps = await get_perk_caps()
     cap  = int(caps.get(code, 0))
 
-    holders = await get_perk_holders(code)   # у кого на руках
+    holders = await get_perk_holders(code)
     active  = len(holders)
-
-    vouchers = await get_vouchers_total_for_code(code)  # все ваучеры по коду
-
-    used = active + vouchers
+    vouchers = await get_vouchers_total_for_code(code)
+    escrow   = await get_perk_escrowed_total_for_code(code)  # << добавили
+    used = active + vouchers + escrow
     return max(0, cap - used)
 
 
