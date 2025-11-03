@@ -2012,7 +2012,7 @@ async def handle_market_show(message: types.Message):
                 offer_blocks.append(
                     f"<b>Товар:</b> Перк «{title}» {emoji}\n"
                     f"<b>Команда покупки:</b> <code>купить лот {offer_id}</code>\n"
-                    f"\n<b>Команда снятия:</b> <code>снять лот {offer_id}</code>"
+                    f"<b>Команда снятия:</b> <code>снять лот {offer_id}</code>\n"
                     f"<b>Цена:</b> {fmt_money(price)}\n"
                     f"<b>Продавец:</b> {seller_repr}\n"
                 )
@@ -2021,7 +2021,7 @@ async def handle_market_show(message: types.Message):
                 offer_blocks.append(
                     f"<b>Товар:</b> {link}\n"
                     f"<b>Команда покупки:</b> <code>купить лот {offer_id}</code>\n"
-                    f"\n<b>Команда снятия:</b> <code>снять лот {offer_id}</code>"
+                    f"<b>Команда снятия:</b> <code>снять лот {offer_id}</code>\n"
                     f"<b>Цена:</b> {fmt_money(price)}\n"
                     f"<b>Продавец:</b> {seller_repr}\n"
                 )
