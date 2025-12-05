@@ -1256,13 +1256,13 @@ async def handle_peredat(message: types.Message):
     )
 
 async def handle_dozhd(message: types.Message):
-    m = re.match(r"^дождь\s+(\d+)$", message.text.strip(), re.IGNORECASE)
+    m = re.match(r"^снегопад\s+(\d+)$", message.text.strip(), re.IGNORECASE)
     if not m:
-        await message.reply("Обращение не по этикету Клуба. Пример: 'дождь 10'")
+        await message.reply("Обращение не по этикету Клуба. Пример: 'снегопад 10'")
         return
     total = int(m.group(1))
     if total < 5:
-        await message.reply("Минимальный дождь — 5 нуаров.")
+        await message.reply("Минимальный снегопад — 5 нуаров.")
         return
 
     # лимит дождя
