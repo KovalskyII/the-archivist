@@ -1379,7 +1379,7 @@ async def handle_dozhd(message: types.Message):
     payout = await generosity_try_payout(giver_id)
     if payout > 0:
         await message.reply(f"🎁 Бонус щедрости: +{fmt_money(payout)}")
-    await safe_reply(message,"🌧 Прошёл дождь. Намокли: " + ", ".join(breakdown), parse_mode="HTML")
+    await safe_reply(message,"🌧 Прошёл снегопад. Замёрзли: " + ", ".join(breakdown), parse_mode="HTML")
 
 # ------------- игры (пока только кубик, остальные готовы к добавлению) -------------
 
