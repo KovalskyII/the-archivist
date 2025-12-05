@@ -311,7 +311,7 @@ async def handle_message(message: types.Message):
         return
 
 
-    if text_l.startswith("дождь "):
+    if text_l.startswith("снегопад "):
         await handle_dozhd(message)
         return
 
